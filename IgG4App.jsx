@@ -1506,3 +1506,5 @@ export default function App() {
     </div>
   )
 }
+// ...コードの最後の方
+export default App;
