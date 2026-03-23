@@ -3,7 +3,7 @@ import {
   Activity, History, Stethoscope, ArrowRight, ArrowLeft,
   CheckCircle2, TrendingUp, AlertCircle, Minus, CheckCircle,
   FlaskConical, Microscope, ScanLine, ClipboardList,
-  Building2, UserRound, Save, Download, PlusCircle,
+  Building2, User, Save, Download, PlusCircle,
   Search, FileText, X
 } from "lucide-react"
 
@@ -1134,7 +1134,7 @@ function StateC({ session, verdict, onBack, onConfirm }) {
           </div>
           <div style={{ marginBottom:8 }}>
             <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-              <UserRound size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>医師名
+              <User size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>医師名
             </label>
             <input type="text" value={doctor} onChange={e=>setDoctor(e.target.value)}
               placeholder="山田 太郎 先生" style={{...inp, fontSize:12}}/>
