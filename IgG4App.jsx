@@ -3,7 +3,7 @@ import {
   Activity, History, Stethoscope, ArrowRight, ArrowLeft,
   CheckCircle2, TrendingUp, AlertCircle, Minus, CheckCircle,
   FlaskConical, Microscope, ScanLine, ClipboardList,
-  Building2, UserRound, Save, Download, PlusCircle,
+  Building2, User, Save, Download, PlusCircle,
   Search, FileText, X
 } from "lucide-react"
 
