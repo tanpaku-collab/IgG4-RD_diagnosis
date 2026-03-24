@@ -1,1509 +1,391 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import {
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { 
   Activity, History, Stethoscope, ArrowRight, ArrowLeft,
   CheckCircle2, TrendingUp, AlertCircle, Minus, CheckCircle,
   FlaskConical, Microscope, ScanLine, ClipboardList,
   Building2, User, Save, Download, PlusCircle,
   Search, FileText, X
-} from "lucide-react"
+} from "lucide-react";
 
 // ═══════════════════════════════════════════════
 // DESIGN TOKENS
 // ═══════════════════════════════════════════════
 const T = {
   green: {
-    bg:"#f0fdf4", border:"#86efac", accent:"#16a34a", header:"#14532d",
-    badge:"#dcfce7", badgeTxt:"#15803d",
+    50: "#f0fdf4",
+    100: "#dcfce7",
+    200: "#bbf7d0",
+    600: "#16a34a",
+    700: "#15803d",
+    800: "#166534",
   },
-  navy: {
-    bg:"#eff6ff", border:"#93c5fd", accent:"#1d4ed8", header:"#1e3a8a",
-    badge:"#dbeafe", badgeTxt:"#1d4ed8",
+  blue: {
+    50: "#f0f9ff",
+    600: "#0284c7",
+    700: "#0369a1",
   },
-  verdict: {
-    definite:{ bg:"#1e3a8a", glow:"rgba(30,58,138,.5)"  },
-    probable:{ bg:"#1d4ed8", glow:"rgba(29,78,216,.45)" },
-    possible:{ bg:"#0891b2", glow:"rgba(8,145,178,.4)"  },
-    negative:{ bg:"#64748b", glow:"rgba(0,0,0,.15)"     },
+  gray: {
+    50: "#f9fafb",
+    100: "#f3f4f6",
+    200: "#e5e7eb",
+    300: "#d1d5db",
+    400: "#9ca3af",
+    500: "#6b7280",
+    600: "#4b5563",
+    700: "#374151",
+    800: "#1f2937",
+    900: "#111827",
   }
-}
+};
 
 // ═══════════════════════════════════════════════
-// ORGAN DATA
+// COMPONENTS
 // ═══════════════════════════════════════════════
-const ORGANS = [
-  { id:"pituitary",       name:"下垂体",       subName:"IgG4関連下垂体炎",     hasLogic:false, side:"left"  },
-  { id:"dura",            name:"硬膜",          subName:"IgG4関連肥厚性硬膜炎", hasLogic:false, side:"left"  },
-  { id:"thyroid",         name:"甲状腺",        subName:"IgG4関連甲状腺炎",     hasLogic:false, side:"left"  },
-  { id:"retroperitoneal", name:"後腹膜腔・尿管",subName:"IgG4関連後腹膜線維症", hasLogic:true,  side:"left"  },
-  { id:"pancreas",        name:"膵臓",          subName:"1型自己免疫性膵炎",    hasLogic:true,  side:"left"  },
-  { id:"bile_duct",       name:"胆管",          subName:"IgG4関連硬化性胆管炎", hasLogic:true,  side:"left"  },
-  { id:"lymph_node",      name:"リンパ節",      subName:"IgG4関連リンパ節炎",   hasLogic:false, side:"left"  },
-  { id:"lacrimal",        name:"涙腺",          subName:"IgG4関連涙腺炎",       hasLogic:true,  side:"right" },
-  { id:"salivary",        name:"唾液腺",        subName:"IgG4関連唾液腺炎",     hasLogic:true,  side:"right" },
-  { id:"orbit",           name:"眼窩",          subName:"IgG4関連眼疾患",       hasLogic:true,  side:"right" },
-  { id:"lung",            name:"肺・気管支",    subName:"IgG4関連呼吸器疾患",   hasLogic:true,  side:"right" },
-  { id:"aorta",           name:"大動脈・心臓",  subName:"IgG4関連大動脈周囲炎", hasLogic:true,  side:"right" },
-  { id:"kidney",          name:"腎臓",          subName:"IgG4関連腎臓病",       hasLogic:true,  side:"right" },
-  { id:"prostate",        name:"前立腺",        subName:"IgG4関連前立腺炎",     hasLogic:false, side:"right" },
-]
 
-// SVG dot positions (viewBox "0 0 100 300")
-const DOT_POS = {
-  // HEAD region — 人体5.png head occupies roughly y:4-16% of viewBox
-  dura:            { x:50, y:5   },  // 頭頂
-  pituitary:       { x:50, y:10  },  // 頭部中央（下垂体）
-  lacrimal:        { x:50, y:8   },  // 目（涙腺）
-  orbit:           { x:50, y:9   },  // 眼窩
-  salivary:        { x:50, y:14  },  // 顎下（唾液腺）
-  // NECK/UPPER CHEST
-  thyroid:         { x:50, y:19  },  // 甲状腺（首）
-  lymph_node:      { x:50, y:27  },  // リンパ節（鎖骨下）
-  // CHEST
-  lung:            { x:50, y:36  },  // 肺・気管支
-  aorta:           { x:50, y:43  },  // 大動脈・心臓
-  // UPPER ABDOMEN
-  bile_duct:       { x:44, y:50  },  // 胆管（右季肋部）
-  pancreas:        { x:56, y:53  },  // 膵臓（左腹部）
-  // LOWER ABDOMEN
-  retroperitoneal: { x:43, y:60  },  // 後腹膜腔・尿管（左）
-  kidney:          { x:57, y:59  },  // 腎臓（右）
-  // PELVIS
-  prostate:        { x:50, y:70  },  // 前立腺
-}
-
-// ═══════════════════════════════════════════════
-// ORGAN CRITERIA — extensible object map
-// ═══════════════════════════════════════════════
-const ORGAN_CRITERIA = {
-  // ── 1. 自己免疫性膵炎（AIP）
-  pancreas: {
-    label:"自己免疫性膵炎（AIP）診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      // Ia: びまん性腫大
-      const Ia  = has("aip_Ia")
-      // Ib: 限局性腫大 + 2項目以上
-      const IbImg  = has("aip_IbImg")
-      const IbIgG4 = has("aip_IbIgG4")
-      const IbPath = has("aip_IbPath")
-      const IbSteroid = has("aip_IbSteroid")
-      const IbSub = [IbIgG4, IbPath, IbSteroid].filter(Boolean).length >= 2
-      const Ib    = IbImg && IbSub
-      // II: 病理
-      const IIa = has("aip_IIa")
-      const IIb = has("aip_IIb")
-      const II  = IIa || IIb
-      // IVa: 他臓器IgG4関連 + IgG4高値
-      const IVa = has("aip_IVa_organ") && has("aip_IVa_IgG4")
-      // IVb: 他臓器IgG4関連 + 限局性膵腫大
-      const IVb = has("aip_IVb_organ") && has("aip_IVb_local")
-      // V: ステロイド反応
-      const V   = has("aip_V")
-      // Definite: Ia or (Ib+II) or II
-      if (Ia || (Ib && II) || II) return "definite"
-      // Probable: Ib alone, or IVa, or IVb
-      if (Ib || IVa || IVb) return "probable"
-      // Possible: V (ステロイド反応性)
-      if (V && (IbImg || has("aip_Ia"))) return "possible"
-      return null
-    },
-    groups:[
-      { label:"I型AIP 主膵管像・膵画像", items:[
-        { id:"aip_Ia",    text:"[Ia] びまん性膵腫大 ＋ 膵管びまん性狭細（ワイヤーサイン）" },
-        { id:"aip_IbImg", text:"[Ib] 限局性膵腫大 ＋ 限局性主膵管狭細（狭細部上流拡張なし）" },
-      ]},
-      { label:"補助診断項目（Ib の場合、2項目以上で確定）", items:[
-        { id:"aip_IbIgG4",   text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"aip_IbPath",   text:"病理：膵リンパ球・形質細胞浸潤＋IgG4陽性細胞>10/HPF" },
-        { id:"aip_IbSteroid",text:"ステロイド治療への顕著な反応性" },
-      ]},
-      { label:"II型AIP 病理所見（いずれか）", items:[
-        { id:"aip_IIa", text:"[IIa] IDCP：膵管上皮内好中球浸潤（GEL）＋IgG4陽性細胞 ≦10/HPF" },
-        { id:"aip_IIb", text:"[IIb] リンパ球・形質細胞浸潤＋閉塞性静脈炎＋IgG4陽性細胞>10/HPF" },
-      ]},
-      { label:"他臓器 IgG4 関連病変による傍証", items:[
-        { id:"aip_IVa_organ", text:"[IVa] 他臓器IgG4関連疾患の合併（涙腺・唾液腺・胆管・腎臓等）" },
-        { id:"aip_IVa_IgG4",  text:"[IVa] 血清IgG4値 135 mg/dL 以上" },
-        { id:"aip_IVb_organ", text:"[IVb] 他臓器IgG4関連疾患の合併" },
-        { id:"aip_IVb_local", text:"[IVb] 限局性膵腫大（主膵管像なし）" },
-      ]},
-      { label:"ステロイド反応性（V）", items:[
-        { id:"aip_V", text:"[V] 膵画像異常＋ステロイド投与で改善・消失" },
-      ]},
-    ],
-  },
-
-  // ── 2. IgG4関連ミクリッツ病（涙腺・唾液腺）
-  lacrimal: {
-    label:"IgG4関連ミクリッツ病診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const bilat = has("mik_bilat")
-      const IgG4  = has("mik_IgG4")
-      const path  = has("mik_path")
-      const excl  = has("mik_excl")   // 他疾患除外
-      if (bilat && IgG4 && path) return "definite"
-      if (bilat && IgG4 && excl) return "probable"
-      if (bilat && excl)         return "possible"
-      return null
-    },
-    groups:[
-      { label:"主要所見", items:[
-        { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
-        { id:"mik_IgG4",  text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"mik_path",  text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"mik_excl",  text:"sarcoidosis・Sjögren症候群・悪性リンパ腫など他疾患の除外" },
-      ]},
-    ],
-  },
-
-  salivary: {
-    label:"IgG4関連ミクリッツ病診断基準（唾液腺）",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const bilat = has("mik_bilat")
-      const IgG4  = has("mik_IgG4")
-      const path  = has("mik_path")
-      const excl  = has("mik_excl")
-      if (bilat && IgG4 && path) return "definite"
-      if (bilat && IgG4 && excl) return "probable"
-      if (bilat && excl)         return "possible"
-      return null
-    },
-    groups:[
-      { label:"主要所見", items:[
-        { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
-        { id:"mik_IgG4",  text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"mik_path",  text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"mik_excl",  text:"他疾患（Sjögren症候群・悪性リンパ腫等）の除外" },
-      ]},
-    ],
-  },
-
-  // ── 3. IgG4関連腎臓病
-  kidney: {
-    label:"IgG4関連腎臓病診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const img  = has("kd_img")
-      const IgG4 = has("kd_IgG4")
-      const path = has("kd_path")
-      const excl = has("kd_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if ((img || IgG4) && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"kd_img",  text:"腎画像所見：腎腫大・辺縁不整・多発低吸収域・腎盂壁肥厚（CT）" },
-        { id:"kd_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"kd_path", text:"病理：尿細管間質性腎炎＋IgG4陽性形質細胞浸潤 >10/HPF" },
-        { id:"kd_excl", text:"悪性腫瘍・感染症・他の自己免疫疾患（ループス腎炎等）の除外" },
-      ]},
-    ],
-  },
-
-  // ── 4. IgG4関連硬化性胆管炎（IgG4-SC）
-  bile_duct: {
-    label:"IgG4関連硬化性胆管炎（IgG4-SC）臨床診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const img  = has("sc_img")
-      const IgG4 = has("sc_IgG4")
-      const aip  = has("sc_aip")
-      const path = has("sc_path")
-      const excl = has("sc_excl")
-      // Definite: 画像 + 病理 (or AIP合併 + IgG4高値)
-      if (img && path) return "definite"
-      if (img && aip && IgG4) return "definite"
-      // Probable: 画像 + IgG4高値 + 除外
-      if (img && IgG4 && excl) return "probable"
-      // Possible: 画像 + 除外
-      if (img && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"sc_img",  text:"胆管画像：胆管壁肥厚・多発狭窄（ERCP/MRCP/CT）" },
-        { id:"sc_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"sc_aip",  text:"自己免疫性膵炎（AIP）の合併" },
-        { id:"sc_path", text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"sc_excl", text:"胆管癌・原発性硬化性胆管炎（PSC）の除外" },
-      ]},
-    ],
-  },
-
-  // ── 5. IgG4関連眼疾患（眼窩）
-  orbit: {
-    label:"IgG4関連眼疾患診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const lesion = has("ob_lesion")
-      const IgG4   = has("ob_IgG4")
-      const path   = has("ob_path")
-      const excl   = has("ob_excl")
-      if (lesion && path) return "definite"
-      if (lesion && IgG4 && excl) return "probable"
-      if (lesion && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"ob_lesion", text:"眼窩・涙腺・眼瞼・外眼筋・眼窩脂肪組織の腫脹性病変" },
-        { id:"ob_IgG4",   text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"ob_path",   text:"病理：IgG4陽性形質細胞浸潤 >10/HPF（涙腺生検等）" },
-        { id:"ob_excl",   text:"肉芽腫性疾患（sarcoid等）・リンパ腫・甲状腺眼症の除外" },
-      ]},
-    ],
-  },
-
-  // ── 6. IgG4関連呼吸器疾患
-  lung: {
-    label:"IgG4関連呼吸器疾患診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const img  = has("lu_img")
-      const IgG4 = has("lu_IgG4")
-      const path = has("lu_path")
-      const excl = has("lu_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if (img && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"lu_img",  text:"肺画像所見：結節影・浸潤影・気管支肺胞壁肥厚・胸膜肥厚（CT）" },
-        { id:"lu_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"lu_path", text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋席状線維化（TBLB/VATS）" },
-        { id:"lu_excl", text:"感染症・悪性腫瘍・過敏性肺炎の除外" },
-      ]},
-    ],
-  },
-
-  // ── 7. IgG4関連大動脈周囲炎/後腹膜線維症
-  aorta: {
-    label:"IgG4関連大動脈周囲炎・動脈周囲炎診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const img  = has("ao_img")
-      const IgG4 = has("ao_IgG4")
-      const path = has("ao_path")
-      const excl = has("ao_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if (img && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"ao_img",  text:"大動脈・腸骨動脈周囲の軟部組織影・肥厚（CT/MRI/PET）" },
-        { id:"ao_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"ao_path", text:"病理：IgG4陽性形質細胞浸潤＋席状線維化・閉塞性静脈炎" },
-        { id:"ao_excl", text:"悪性腫瘍・感染性大動脈瘤・他の結合組織病の除外" },
-      ]},
-    ],
-  },
-
-  retroperitoneal: {
-    label:"IgG4関連後腹膜線維症診断基準",
-    verdict:(oc)=>{
-      const has = id => !!oc[id]
-      const img    = has("rp_img")
-      const IgG4   = has("rp_IgG4")
-      const path   = has("rp_path")
-      const ureter = has("rp_ureter")
-      const excl   = has("rp_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && (ureter || excl)) return "probable"
-      if (img && excl) return "possible"
-      return null
-    },
-    groups:[
-      { label:"診断項目", items:[
-        { id:"rp_img",    text:"後腹膜画像：大動脈・下大静脈周囲の軟部組織塊（CT/MRI）" },
-        { id:"rp_IgG4",   text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"rp_path",   text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋席状線維化" },
-        { id:"rp_ureter", text:"尿管閉塞・水腎症の合併（特発性後腹膜線維症と同義）" },
-        { id:"rp_excl",   text:"悪性腫瘍・Erdheim-Chester病等の除外" },
-      ]},
-    ],
-  },
-}
-
-
-// ═══════════════════════════════════════════════
-// VERDICT LOGIC — 2020 comprehensive criteria
-// 1+2+3=definite | 1+3=probable | 1+2=possible
-// ═══════════════════════════════════════════════
-function calcVerdict(session) {
-  const { checks, organChecks, selectedOrgans } = session
-  const { c1, c2, c3a, c3b, c3c } = checks
-  const c3Count = [c3a, c3b, c3c].filter(Boolean).length
-  const c3Match = c3Count >= 2
-
-  // Object-based rule map (extensible)
-  const RULES = {
-    "c1+c2+c3": "definite",
-    "c1+c3":    "probable",
-    "c1+c2":    "possible",
-    "c1":       "negative",
-    "":         "negative",
-  }
-  const ruleKey = [c1 && "c1", c2 && "c2", c3Match && "c3"].filter(Boolean).join("+")
-  const comprehensive = RULES[ruleKey] ?? "negative"
-
-  // Organ-specific: compute verdict per organ
-  const organVerdicts = {}
-  let organDefinite = false
-  for (const organId of selectedOrgans) {
-    const crit = ORGAN_CRITERIA[organId]
-    if (!crit) continue
-    const oc = organChecks[organId] ?? {}
-    let orgResult = null
-    if (typeof crit.verdict === 'function') {
-      orgResult = crit.verdict(oc)
-    } else if (crit.items) {
-      const cnt = crit.items.filter(i => oc[i.id]).length
-      if (cnt >= crit.threshold) orgResult = "definite"
-      else if (cnt > 0) orgResult = "possible"
-    }
-    organVerdicts[organId] = orgResult
-    if (orgResult === "definite") organDefinite = true
-  }
-
-  const upgraded = organDefinite && comprehensive !== "definite"
-  const final = upgraded ? "definite" : comprehensive
-  return { comprehensive, final, upgraded, c3Count, c3Match, organVerdicts }
-}
-
-const VERDICT_META = {
-  definite:{ ja:"確定診断群", en:"Definite", desc:"IgG4関連疾患の確定診断基準を満たします", icon:<CheckCircle size={17}/> },
-  probable:{ ja:"準確診群",   en:"Probable", desc:"臓器別基準の追加確認を推奨します",         icon:<TrendingUp size={17}/> },
-  possible:{ ja:"疑診群",     en:"Possible", desc:"病理学的検査の実施を検討してください",      icon:<AlertCircle size={17}/> },
-  negative:{ ja:"基準未達",   en:"Negative", desc:"各項目をチェックしてください",               icon:<Minus size={17}/> },
-}
-
-// ── localStorage ──
-function loadRecords() { try { return JSON.parse(localStorage.getItem("igg4_v2")||"[]") } catch { return [] } }
-function saveRecords(r){ localStorage.setItem("igg4_v2", JSON.stringify(r)) }
-
-// ═══════════════════════════════════════════════
-// MEDICAL BODY SILHOUETTE
-// ═══════════════════════════════════════════════
-const BODY_IMG_SRC = "data:image/png;base64,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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//Z"
-
-function MedicalSilhouette({ selectedOrgans, onToggle }) {
-  return (
-    <div style={{ position:"relative", width:"100%", height:"100%" }}>
-      {/* PNG silhouette */}
-      <img src={BODY_IMG_SRC} alt="人体図"
-        style={{ width:"100%", height:"100%", objectFit:"contain", display:"block" }}/>
-      {/* Interactive dot layer */}
-      <svg viewBox="0 0 100 300" xmlns="http://www.w3.org/2000/svg"
-        style={{ position:"absolute", inset:0, width:"100%", height:"100%", overflow:"visible" }}>
-                {ORGANS.map(organ => {
-          const pos = DOT_POS[organ.id]; if (!pos) return null
-          const sel = selectedOrgans.includes(organ.id)
-          return (
-            <g key={organ.id} onClick={()=>onToggle(organ.id)} style={{ cursor:"pointer" }}>
-              {sel && (
-                <circle cx={pos.x} cy={pos.y} r="8"
-                  fill="none" stroke="#0d9488" strokeWidth="1.1" opacity=".45"
-                  style={{ animation:"dotPulse 1.8s ease-in-out infinite" }}/>
-              )}
-              <circle cx={pos.x} cy={pos.y} r={sel ? 5.2 : 4.4}
-                fill={sel ? "rgba(13,148,136,.2)" : "rgba(37,99,235,.13)"}
-                stroke={sel ? "#0d9488" : "#3b82f6"} strokeWidth={sel ? 1.3 : 1.0}/>
-              <circle cx={pos.x} cy={pos.y} r={sel ? 2.8 : 2.3}
-                fill={sel ? "#0d9488" : "#2563eb"} stroke="white" strokeWidth="1.1"/>
-            </g>
-          )
-        })}
-        <style>{`@keyframes dotPulse{0%,100%{r:8;opacity:.4}50%{r:11;opacity:.15}}`}</style>
-      </svg>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// STICKY VERDICT HEADER
-// ═══════════════════════════════════════════════
-function StickyVerdictHeader({ verdict }) {
-  const { final, upgraded, c3Count, c3Match } = verdict
-  const vc   = T.verdict[final]
-  const meta = VERDICT_META[final]
-  const prevRef = useRef(final)
-  const [flash, setFlash] = useState(false)
-
-  useEffect(()=>{
-    if (prevRef.current !== final) {
-      prevRef.current = final; setFlash(true)
-      const t = setTimeout(()=>setFlash(false), 800); return ()=>clearTimeout(t)
-    }
-  }, [final])
+const Button = ({ children, onClick, variant = "primary", className = "", icon: Icon }) => {
+  const base = "flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200";
+  const variants = {
+    primary: `bg-[${T.green[600]}] text-white hover:bg-[${T.green[700]}] shadow-sm`,
+    secondary: `bg-white border border-[${T.gray[200]}] text-[${T.gray[700]}] hover:bg-[${T.gray[50]}]`,
+    ghost: `text-[${T.gray[500]}] hover:bg-[${T.gray[100]}]`,
+  };
 
   return (
-    <div style={{
-      position:"sticky", top:49, zIndex:40,
-      background: vc.bg,
-      boxShadow:`0 4px 20px ${vc.glow}`,
-      color:"white",
-      transition:"background 0.6s cubic-bezier(.4,0,.2,1), box-shadow 0.6s",
-    }}>
-      {flash && <div style={{ position:"absolute", inset:0, background:"rgba(255,255,255,.35)", pointerEvents:"none", animation:"vFlash 0.8s ease-out forwards" }}/>}
-      <div style={{ maxWidth:680, margin:"0 auto", padding:"10px 14px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
-          <span style={{ opacity:.85, flexShrink:0 }}>{meta.icon}</span>
-          <div style={{ minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"baseline", gap:6, flexWrap:"wrap" }}>
-              <span style={{ fontSize:15, fontWeight:700, letterSpacing:".03em", lineHeight:1.2 }}>{meta.ja}</span>
-              <span style={{ fontSize:11, opacity:.65 }}>({meta.en})</span>
-            </div>
-            <p style={{ fontSize:10, opacity:.72, margin:"2px 0 0", lineHeight:1.3 }}>{meta.desc}</p>
-            {upgraded && (
-              <span style={{ display:"inline-flex", alignItems:"center", gap:3, marginTop:3, fontSize:9, fontWeight:700, background:"#fbbf24", color:"#1e3a8a", padding:"2px 7px", borderRadius:20 }}>
-                <TrendingUp size={9}/> 臓器別基準で格上げ
-              </span>
-            )}
-          </div>
-        </div>
-        <div style={{ flexShrink:0, display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
-          <span style={{ fontSize:9, opacity:.6 }}>病理 C3</span>
-          <div style={{ display:"flex", gap:3 }}>
-            {[0,1,2].map(i=>(
-              <div key={i} style={{ width:13, height:5, borderRadius:3, transition:"background .4s",
-                background: i<c3Count ? (c3Match?"#4ade80":"#fcd34d") : "rgba(255,255,255,.2)" }}/>
-            ))}
-          </div>
-          <span style={{ fontSize:9, fontWeight:700, transition:"color .4s", color: c3Match?"#4ade80":"rgba(255,255,255,.4)" }}>
-            {c3Match?"C3 成立":`${c3Count}/3`}
-          </span>
-        </div>
-      </div>
-      <div style={{ height:3, background:"rgba(255,255,255,.12)" }}>
-        <div style={{ height:"100%", background:"rgba(255,255,255,.4)", width:`${Math.min(c3Count/2,1)*100}%`, transition:"width .8s cubic-bezier(.4,0,.2,1)" }}/>
-      </div>
-      <style>{`@keyframes vFlash{0%{opacity:.5}100%{opacity:0}}`}</style>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// BODY MAP — PNG image + absolutely positioned % dots
-// The parent container must have position:relative
-// ═══════════════════════════════════════════════
-// Dot positions as % of image (left%, top%)
-// Calibrated against 人体7.jpg reference image
-// Image aspect ratio ~0.45:1 (portrait)
-function BodyMap() {
-  // ⚑ LAYOUT CSS FROZEN — do NOT modify:
-  //   width:"100%" + aspectRatio:"2/3" = width-driven height → no portrait stretch
-  //   objectFit:"contain"              = never distort image
-  return (
-    <div
-      data-bodymap="1"
-      style={{
-        width:"100%",
-        position:"relative",
-        aspectRatio:"2 / 3",
-        overflow:"hidden",
-        borderRadius:8,
-      }}>
-      <img
-        src={BODY_IMG_SRC}
-        alt="人体図"
-        style={{
-          position:"absolute",
-          inset:0,
-          width:"100%",
-          height:"100%",
-          objectFit:"contain",
-          display:"block",
-          pointerEvents:"none",
-          userSelect:"none",
-        }}
-      />
-    </div>
-  )
-}
-
-
-// ═══════════════════════════════════════════════
-// ORGAN CARD — white card style matching reference image
-// ═══════════════════════════════════════════════
-function OrganRow({ organ, selected, onToggle, btnRef }) {
-  return (
-    <button
-      ref={btnRef}
-      onClick={()=>onToggle(organ.id)}
-      style={{
-        width:"100%",
-        textAlign:"left",
-        padding:"4px 6px",
-        borderRadius:7,
-        border: selected ? "1.5px solid #0d9488" : "1.5px solid #dbeafe",
-        background: selected ? "#f0fdfa" : "white",
-        cursor:"pointer",
-        transition:"all .15s",
-        WebkitTapHighlightColor:"transparent",
-        boxShadow: selected ? "0 0 0 2px rgba(13,148,136,.12)" : "0 1px 3px rgba(30,58,138,.07)",
-        minWidth:0,
-        overflow:"hidden",
-      }}
-    >
-      {/* Line 1: organ name */}
-      <div style={{ display:"flex", alignItems:"center", gap:4, overflow:"hidden" }}>
-        <span style={{
-          fontSize:11,
-          fontWeight:700,
-          color: selected ? "#0f766e" : "#1e3a8a",
-          whiteSpace:"nowrap",
-          overflow:"hidden",
-          textOverflow:"ellipsis",
-          lineHeight:1.35,
-          flexShrink:1,
-          minWidth:0,
-        }}>
-          {organ.name}
-        </span>
-        {organ.hasLogic && (
-          <span style={{
-            fontSize:9,
-            color: selected ? "#0d9488" : "#3b82f6",
-            fontWeight:700,
-            flexShrink:0,
-            lineHeight:1,
-          }}>✓</span>
-        )}
-      </div>
-      {/* Line 2: disease name — nowrap, ellipsis if needed */}
-      <p style={{
-        fontSize:9,
-        color: selected ? "#0d9488" : "#64748b",
-        margin:0,
-        marginTop:1,
-        whiteSpace:"nowrap",
-        overflow:"hidden",
-        textOverflow:"ellipsis",
-        lineHeight:1.3,
-      }}>
-        {organ.subName}
-      </p>
+    <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+      {Icon && <Icon size={18} />}
+      {children}
     </button>
-  )
-}
+  );
+};
+
+const Card = ({ children, className = "" }) => (
+  <div className={`bg-white rounded-xl border border-[${T.gray[200]}] shadow-sm overflow-hidden ${className}`}>
+    {children}
+  </div>
+);
 
 // ═══════════════════════════════════════════════
-// STATE A  — with draw-line animation overlay
+// MAIN APP COMPONENT
 // ═══════════════════════════════════════════════
 
-// Endpoint coordinates for each organ on the body image.
-// Values are % of the BodyMap container (width:100%, aspectRatio:2/3).
-// Derived from IMG_2526.jpeg reference image.
-// Left-side organs connect from the RIGHT edge of their button.
-// Right-side organs connect from the LEFT edge of their button.
-const LINE_TARGETS = {
-  // LEFT side
-  pituitary:       { tx:50, ty: 9  },  // 下垂体 ┐ 頭部中央に統合
-  dura:            { tx:50, ty: 9  },  // 硬膜   ┘
-  thyroid:         { tx:50, ty:19  },  // 甲状腺 — 首
-  retroperitoneal: { tx:46, ty:42  },  // 後腹膜腔 — 青枠中央左（↑大幅上へ）
-  pancreas:        { tx:52, ty:39  },  // 膵臓 — 青枠上部右（みぞおち）
-  bile_duct:       { tx:52, ty:43  },  // 胆管 — 膵臓直下・青枠中央
-  // lymph_node は省略 → 線を表示しない（useEffectでスキップ）
-  // RIGHT side
-  lacrimal:        { tx:50, ty:10  },  // 涙腺 ┐ 眼窩と同一位置に統合
-  salivary:        { tx:52, ty:14  },  // 唾液腺 — 顎
-  orbit:           { tx:50, ty:10  },  // 眼窩 ┘
-  lung:            { tx:50, ty:26  },  // 肺・気管支 — 胸部上（変更なし）
-  aorta:           { tx:50, ty:31  },  // 大動脈 — 肺の直下（変更なし）
-  kidney:          { tx:54, ty:41  },  // 腎臓 — 青枠中央右（↑大幅上へ）
-  prostate:        { tx:50, ty:46  },  // 前立腺 — 青枠下部・骨盤上縁（↑大幅上へ）
-}
+const App = () => {
+  const [step, setStep] = useState(1);
+  const [selectedOrgan, setSelectedOrgan] = useState(null);
+  const [findings, setFindings] = useState({});
+  const [results, setResults] = useState(null);
+  const [showSummary, setShowSummary] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
-function StateA({ session, onToggle, onProceed, onReset }) {
-  const { selectedOrgans } = session
-  const left  = ORGANS.filter(o=>o.side==="left")
-  const right = ORGANS.filter(o=>o.side==="right")
-  const names = selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean)
+  // Body Parts Definition
+  const bodyParts = [
+    { id: "eye", label: "眼（涙腺）", x: "47%", y: "15%", w: "6%", h: "3%" },
+    { id: "salivary", label: "唾液腺", x: "45%", y: "21%", w: "10%", h: "4%" },
+    { id: "lymph", label: "リンパ節", x: "42%", y: "27%", w: "16%", h: "5%" },
+    { id: "lung", label: "肺", x: "38%", y: "35%", w: "24%", h: "12%" },
+    { id: "liver", label: "肝・胆道", x: "40%", y: "48%", w: "15%", h: "8%" },
+    { id: "pancreas", label: "膵臓", x: "43%", y: "54%", w: "14%", h: "5%" },
+    { id: "kidney", label: "腎臓", x: "36%", y: "58%", w: "28%", h: "8%" },
+    { id: "retro", label: "後腹膜", x: "44%", y: "65%", w: "12%", h: "8%" },
+    { id: "prostate", label: "前立腺", x: "46%", y: "78%", w: "8%", h: "4%" },
+  ];
 
-  // Refs for coordinate measurement
-  const containerRef = useRef(null)   // the 3-col flex row
-  const bodyColRef   = useRef(null)   // center column (contains BodyMap)
-  const btnRefs      = useRef({})     // { organId: buttonElement }
+  // Diagnostic Logic
+  const diagnosticCriteria = {
+    eye: { title: "眼病変（涙腺炎）", items: ["両側性の涙腺腫脹", "上眼瞼の外側腫脹", "眼球突出"] },
+    salivary: { title: "唾液腺病変", items: ["両側性の耳下腺・顎下腺腫脹", "持続的な口渇感", "腺体の弾性硬"] },
+    pancreas: { title: "膵病変（自己免疫性膵炎）", items: ["びまん性膵腫大（ソーセージ様）", "主膵管の狭細像", "閉塞性黄疸"] },
+    kidney: { title: "腎病変", items: ["造影CTでの多発性低吸収域", "腎臓の腫大", "尿細管間質性腎炎の疑い"] },
+    retro: { title: "後腹膜線維症 / 動脈周囲炎", items: ["腹部大動脈周囲の軟部影", "尿管閉塞・水腎症", "腰背部痛"] },
+  };
 
-  // Store computed line coords: { organId: {x1,y1,x2,y2,len} }
-  const [lines, setLines] = useState({})
+  const handleOrganClick = (organId) => {
+    setSelectedOrgan(organId);
+    setStep(2);
+  };
 
-  // Re-compute lines on selection change or resize
-  useEffect(() => {
-    const compute = () => {
-      if (!containerRef.current || !bodyColRef.current) return
-      const cBox  = containerRef.current.getBoundingClientRect()
-      const bBox  = bodyColRef.current.getBoundingClientRect()
+  const toggleFinding = (item) => {
+    setFindings(prev => ({
+      ...prev,
+      [selectedOrgan]: {
+        ...prev[selectedOrgan],
+        [item]: !prev[selectedOrgan]?.[item]
+      }
+    }));
+  };
 
-      // BodyMap (the 2:3 image div) lives inside bodyColRef — find it
-      const imgEl = bodyColRef.current.querySelector('[data-bodymap]')
-      const imgBox = imgEl ? imgEl.getBoundingClientRect() : bBox
-
-      const newLines = {}
-      selectedOrgans.forEach(id => {
-        if (id === "lymph_node") return   // リンパ節は線を表示しない
-        const btn = btnRefs.current[id]
-        const tgt = LINE_TARGETS[id]
-        if (!btn || !tgt) return
-
-        const btnBox = btn.getBoundingClientRect()
-        const organ  = ORGANS.find(o=>o.id===id)
-        const isLeft = organ?.side === "left"
-
-        // Button anchor: right edge center for left organs, left edge center for right
-        const bx = isLeft
-          ? btnBox.right  - cBox.left
-          : btnBox.left   - cBox.left
-        const by = btnBox.top + btnBox.height/2 - cBox.top
-
-        // Body target: % of imgBox
-        const tx = imgBox.left - cBox.left + imgBox.width  * tgt.tx/100
-        const ty = imgBox.top  - cBox.top  + imgBox.height * tgt.ty/100
-
-        const dx = tx - bx, dy = ty - by
-        const len = Math.sqrt(dx*dx + dy*dy)
-        newLines[id] = { x1:bx, y1:by, x2:tx, y2:ty, len }
-      })
-      setLines(newLines)
-    }
-
-    compute()
-    window.addEventListener('resize', compute)
-    return () => window.removeEventListener('resize', compute)
-  }, [selectedOrgans])
-
-  const registerBtn = useCallback((id, el) => {
-    if (el) btnRefs.current[id] = el
-  }, [])
+  const calculateResults = () => {
+    const selectedCount = Object.values(findings).reduce((acc, organFindings) => {
+      return acc + Object.values(organFindings).filter(v => v).length;
+    }, 0);
+    
+    setResults({
+      score: selectedCount,
+      probability: selectedCount >= 2 ? "High" : selectedCount === 1 ? "Moderate" : "Low",
+      summary: `${selectedCount} 領域の典型的所見を確認。IgG4関連疾患の可能性を考慮し、血清IgG4測定および生検を検討してください。`
+    });
+    setStep(3);
+  };
 
   return (
-    <div style={{ padding:"14px 10px 20px", maxWidth:860, margin:"0 auto" }}>
-      {/* Title */}
-      <div style={{ textAlign:"center", marginBottom:10 }}>
-        <h2 style={{ fontSize:16, fontWeight:700, color:"#1e3a8a", margin:0 }}>関連臓器を選択</h2>
-        <p style={{ fontSize:11, color:"#64748b", margin:"4px 0 0" }}>症状がある臓器をタップ（複数選択可）</p>
-        <p style={{ fontSize:10, color:"#94a3b8", margin:"2px 0 0" }}>
-          <span style={{ color:"#3b82f6", fontWeight:700 }}>✓</span> 臓器別診断基準あり
-        </p>
-      </div>
-
-      {/* ═══ Body map container ═══ */}
-      <div style={{
-        background:"linear-gradient(180deg,#eff6ff 0%,#e0effa 50%,#eff6ff 100%)",
-        borderRadius:18,
-        border:"1px solid #bfdbfe",
-        padding:"12px 8px",
-        boxShadow:"inset 0 2px 8px rgba(14,100,200,.06)",
-        overflow:"hidden",
-        position:"relative",    // needed for SVG overlay
-      }}>
-        {/* 3-col flex row — ref for coordinate measurement */}
-        <div
-          ref={containerRef}
-          style={{ display:"flex", alignItems:"stretch", gap:6, position:"relative" }}
-        >
-          {/* ── LEFT organ column ── flex:1 */}
-          <div style={{
-            flex:"1 1 0",
-            display:"flex", flexDirection:"column", justifyContent:"space-around", gap:3,
-            minWidth:0,
-          }}>
-            {left.map(o=>(
-              <OrganRow key={o.id} organ={o}
-                selected={selectedOrgans.includes(o.id)}
-                onToggle={onToggle}
-                btnRef={el=>registerBtn(o.id,el)}
-              />
-            ))}
-          </div>
-
-          {/* ── CENTER silhouette ── flex:1.4, vertically centered */}
-          <div
-            ref={bodyColRef}
-            style={{
-              flex:"1.4 1 0",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"center",
-              alignSelf:"stretch",
-              minWidth:0,
-            }}
-          >
-            <BodyMap/>
-          </div>
-
-          {/* ── RIGHT organ column ── flex:1 */}
-          <div style={{
-            flex:"1 1 0",
-            display:"flex", flexDirection:"column", justifyContent:"space-around", gap:3,
-            minWidth:0,
-          }}>
-            {right.map(o=>(
-              <OrganRow key={o.id} organ={o}
-                selected={selectedOrgans.includes(o.id)}
-                onToggle={onToggle}
-                btnRef={el=>registerBtn(o.id,el)}
-              />
-            ))}
-          </div>
-
-          {/* ── SVG line overlay — position:absolute, pointerEvents:none ── */}
-          <svg
-            style={{
-              position:"absolute",
-              inset:0,
-              width:"100%",
-              height:"100%",
-              pointerEvents:"none",
-              overflow:"visible",
-              zIndex:20,
-            }}
-          >
-            <defs>
-              <filter id="lineShadow" x="-20%" y="-20%" width="140%" height="140%">
-                <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#3b82f6" floodOpacity="0.4"/>
-              </filter>
-            </defs>
-            {Object.entries(lines).map(([id, {x1,y1,x2,y2,len}]) => (
-              <g key={id}>
-                {/* Animated line */}
-                <line
-                  x1={x1} y1={y1} x2={x2} y2={y2}
-                  stroke="#3b82f6"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  opacity="0.75"
-                  filter="url(#lineShadow)"
-                  style={{
-                    strokeDasharray: len,
-                    strokeDashoffset: 0,
-                    animation: `drawLine_${id} 0.35s ease-out forwards`,
-                  }}
-                />
-                {/* Endpoint dot */}
-                <circle
-                  cx={x2} cy={y2} r="3.5"
-                  fill="#3b82f6"
-                  opacity="0.9"
-                  style={{
-                    animation: `fadeInDot 0.15s ease-out 0.3s both`,
-                  }}
-                />
-                <circle
-                  cx={x2} cy={y2} r="5.5"
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="1"
-                  opacity="0.4"
-                  style={{
-                    animation: `fadeInDot 0.15s ease-out 0.32s both`,
-                  }}
-                />
-              </g>
-            ))}
-            <style>{`
-              @keyframes fadeInDot {
-                from { opacity:0; transform:scale(0); transform-origin:center; }
-                to   { opacity:0.9; }
-              }
-              ${Object.entries(lines).map(([id,{len}]) => `
-                @keyframes drawLine_${id} {
-                  from { stroke-dashoffset: ${len}; }
-                  to   { stroke-dashoffset: 0; }
-                }
-              `).join('')}
-            `}</style>
-          </svg>
-        </div>
-      </div>
-
-      {/* Selected summary */}
-      {names.length>0 && (
-        <div style={{ marginTop:10, background:"#f0fdfa", border:"1px solid #5eead4", borderRadius:12, padding:"9px 12px" }}>
-          <p style={{ fontSize:10, fontWeight:700, color:"#0f766e", margin:"0 0 5px" }}>選択中の臓器</p>
-          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-            {names.map(n=>(
-              <span key={n} style={{ background:"#0d9488", color:"white", fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20 }}>{n}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Reset button */}
-      {names.length > 0 && (
-        <button onClick={onReset} style={{
-          marginTop:8, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6,
-          padding:"9px 14px", borderRadius:12, border:"1.5px solid #cbd5e1",
-          background:"white", color:"#64748b",
-          fontWeight:600, fontSize:12,
-          cursor:"pointer", transition:"all .2s",
-        }}>
-          🗑️ 選択をリセット
-        </button>
-      )}
-
-      <button onClick={onProceed} disabled={!names.length} style={{
-        marginTop:names.length?8:11, width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8,
-        padding:"14px", borderRadius:16, border:"none",
-        cursor:names.length?"pointer":"not-allowed",
-        background:names.length?"linear-gradient(135deg,#1e40af,#1d4ed8)":"#e2e8f0",
-        color:names.length?"white":"#94a3b8",
-        fontWeight:700, fontSize:14, letterSpacing:".03em",
-        boxShadow:names.length?"0 4px 16px rgba(29,78,216,.4)":"none",
-        transition:"all .2s",
-      }}>
-        選択した臓器で判定へ進む <ArrowRight size={16}/>
-      </button>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// SUB-COMPONENTS for StateB
-// ═══════════════════════════════════════════════
-
-// Step header inside each card
-function SecHead({ step, icon, title, sub, theme="green" }) {
-  const c = T[theme] || T.green
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px 8px",
-      borderBottom:`1px solid ${c.border}`, background:c.bg }}>
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center",
-        width:22, height:22, borderRadius:"50%", background:c.accent, color:"white",
-        fontSize:10, fontWeight:800, flexShrink:0 }}>
-        {step}
-      </div>
-      {icon}
-      <div style={{ minWidth:0 }}>
-        <div style={{ fontSize:11, fontWeight:700, color:c.header, lineHeight:1.3 }}>{title}</div>
-        {sub && <div style={{ fontSize:9, color:c.accent, lineHeight:1.2, marginTop:1 }}>{sub}</div>}
-      </div>
-    </div>
-  )
-}
-
-// Single check item row
-function CheckItem({ id, code, title, description, checked, onChange, theme="green" }) {
-  const c = T[theme] || T.green
-  return (
-    <label htmlFor={id} style={{ display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer",
-      padding:"6px 8px", borderRadius:10, background:checked?c.badge:"transparent",
-      border:`1px solid ${checked?c.border:"transparent"}`, transition:"all .15s", marginBottom:4 }}>
-      <input type="checkbox" id={id} checked={!!checked} onChange={e=>onChange(e.target.checked)}
-        style={{ marginTop:2, accentColor:c.accent, flexShrink:0, width:14, height:14 }}/>
-      <div style={{ minWidth:0 }}>
-        {title && <div style={{ fontSize:10, fontWeight:700, color:c.header, marginBottom:2 }}>{title}</div>}
-        <div style={{ fontSize:10, color:"#334155", lineHeight:1.45 }}>{description}</div>
-      </div>
-    </label>
-  )
-}
-
-// Organ verdict badge
-function OrganVerdictBadge({ result }) {
-  if (!result) return null
-  const MAP = {
-    definite:{ label:"確定診断", bg:"#1e3a8a", color:"white" },
-    probable:{ label:"準確診",   bg:"#1d4ed8", color:"white" },
-    possible:{ label:"疑診",     bg:"#0891b2", color:"white" },
-  }
-  const m = MAP[result]
-  if (!m) return null
-  return (
-    <span style={{ fontSize:10, fontWeight:700, padding:"2px 10px", borderRadius:20,
-      background:m.bg, color:m.color, marginLeft:8 }}>{m.label}</span>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// STATE B
-// ═══════════════════════════════════════════════
-function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckChange, onBack, onProceedSave, onReset }) {
-  const { checks, igg4Value, selectedOrgans, organChecks } = session
-  const { c3Count, c3Match } = verdict
-
-  const handleIgg4 = v => {
-    onIgg4Change(v)
-    if (!isNaN(parseFloat(v)) && parseFloat(v)>=135) onCheckChange("c2",true)
-  }
-
-  const relevant = Object.entries(ORGAN_CRITERIA).filter(([id])=>selectedOrgans.includes(id))
-  const noLogic  = selectedOrgans.filter(id=>!ORGAN_CRITERIA[id]).map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean)
-  const card = (bg="white") => ({ background:bg, borderRadius:16, border:"1px solid #e2e8f0", overflow:"hidden", marginBottom:10, boxShadow:"0 1px 4px rgba(0,0,0,.06)" })
-
-  return (
-    <>
-      <StickyVerdictHeader verdict={verdict}/>
-      <div style={{ padding:"12px 10px 32px", maxWidth:680, margin:"0 auto" }}>
-
-        {/* ─── GREEN: Comprehensive ─── */}
-        <div style={{ marginBottom:14 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, padding:"0 2px" }}>
-            <div style={{ width:4, height:20, background:T.green.accent, borderRadius:2 }}/>
-            <span style={{ fontSize:12, fontWeight:700, color:T.green.header, letterSpacing:".04em" }}>包括診断基準</span>
-            <span style={{ fontSize:10, color:T.green.accent, background:T.green.bg, border:`1px solid ${T.green.border}`, padding:"1px 8px", borderRadius:20 }}>2020年改訂</span>
-          </div>
-          <div style={card("#f0fdf4aa")}>
-            <SecHead step="1" icon={<ScanLine size={13} color={T.green.accent}/>} title="臨床的及び画像的診断" sub="単一または複数臓器の特徴的所見" theme="green"/>
-            <div style={{ padding:"10px 12px" }}>
-              <CheckItem id="c1" code="C1" title="臨床・画像"
-                description="単一または複数臓器に特徴的なびまん性あるいは限局性腫大、腫瘤、結節、肥厚性病変（リンパ節単独は除く）"
-                checked={checks.c1} onChange={v=>onCheckChange("c1",v)} theme="green"/>
+    <div className="min-h-screen bg-[#F8FAFC] text-[#1E293B] font-sans pb-20">
+      {/* Header */}
+      <header className="bg-white border-b border-[#E2E8F0] sticky top-0 z-50 px-4 py-4 shadow-sm">
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-[#16A34A] rounded-lg flex items-center justify-center text-white shadow-md">
+              <Activity size={20} />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg leading-tight text-[#0F172A]">IgG4-RD Check</h1>
+              <p className="text-[10px] text-[#64748B] font-medium tracking-wide uppercase">Diagnostic Support Tool</p>
             </div>
           </div>
-          <div style={card("white")}>
-            <SecHead step="2" icon={<FlaskConical size={13} color={T.green.accent}/>} title="血清学的診断" sub="高IgG4血症（135 mg/dL 以上）" theme="green"/>
-            <div style={{ padding:"10px 12px" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 10px", background:"#f8fafc", borderRadius:10, border:"1px solid #e2e8f0", marginBottom:8 }}>
-                <FlaskConical size={13} color="#64748b"/>
-                <label style={{ fontSize:11, fontWeight:700, color:"#334155", whiteSpace:"nowrap" }}>血清 IgG4 値</label>
-                <input type="number" value={igg4Value} onChange={e=>handleIgg4(e.target.value)} placeholder="例:148" min={0}
-                  style={{ width:76, padding:"5px 7px", border:"1.5px solid #cbd5e1", borderRadius:8, fontSize:13, fontFamily:"monospace", outline:"none" }}/>
-                <span style={{ fontSize:11, color:"#64748b" }}>mg/dL</span>
-                {igg4Value && parseFloat(igg4Value)>=135 && (
-                  <span style={{ marginLeft:"auto", fontSize:10, fontWeight:700, color:"#059669", background:"#ecfdf5", border:"1px solid #6ee7b7", padding:"2px 7px", borderRadius:20 }}>≥135 ✓</span>
-                )}
+          <button className="p-2 text-[#64748B] hover:bg-[#F1F5F9] rounded-full transition-colors">
+            <User size={22} />
+          </button>
+        </div>
+      </header>
+
+      <main className="max-w-md mx-auto px-4 mt-6">
+        {/* Progress Bar */}
+        <div className="mb-8 flex justify-between items-center px-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center flex-1 last:flex-none">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${
+                step >= s ? "bg-[#16A34A] text-white shadow-lg scale-110" : "bg-white text-[#94A3B8] border-2 border-[#E2E8F0]"
+              }`}>
+                {step > s ? <CheckCircle size={18} /> : s}
               </div>
-              <CheckItem id="c2" code="C2" title="血清学的" description="高IgG4血症：135 mg/dL 以上" checked={checks.c2} onChange={v=>onCheckChange("c2",v)} theme="green"/>
+              {s < 3 && (
+                <div className={`h-1 flex-1 mx-2 rounded-full transition-all duration-500 ${
+                  step > s ? "bg-[#16A34A]" : "bg-[#E2E8F0]"
+                }`} />
+              )}
             </div>
-          </div>
-          <div style={card("#f0fdf4aa")}>
-            <SecHead step="3" icon={<Microscope size={13} color={T.green.accent}/>} title="病理学的診断" sub="a・b・c のうち 2 項目以上で成立" theme="green"/>
-            <div style={{ padding:"10px 12px" }}>
-              <div style={{ borderRadius:12, border:`1.5px solid ${c3Match?"#4ade80":"#e2e8f0"}`, background:c3Match?"rgba(74,222,128,.07)":"#f9fafb", padding:"10px", transition:"all .3s" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
-                  <span style={{ fontSize:10, fontWeight:700, color:c3Match?"#15803d":"#94a3b8" }}>{c3Match?"C3 成立（2項目以上）":`C3 進捗 ${c3Count}/3`}</span>
-                  <div style={{ display:"flex", gap:3 }}>
-                    {[0,1,2].map(i=><div key={i} style={{ width:20, height:5, borderRadius:3, background:i<c3Count?(c3Match?"#4ade80":"#fbbf24"):"#e2e8f0", transition:"background .3s" }}/>)}
-                  </div>
-                </div>
-                <CheckItem id="c3a" code="C3-a" title="病理 a" description="著明なリンパ球・形質細胞の浸潤と線維化" checked={checks.c3a} onChange={v=>onCheckChange("c3a",v)} theme="green"/>
-                <CheckItem id="c3b" code="C3-b" title="病理 b" description="IgG4/IgG陽性細胞比 40%以上 かつ IgG4陽性形質細胞 >10/HPF" checked={checks.c3b} onChange={v=>onCheckChange("c3b",v)} theme="green"/>
-                <CheckItem id="c3c" code="C3-c" title="病理 c" description="特徴的な線維化（花莚状線維化 または 閉塞性静脈炎）" checked={checks.c3c} onChange={v=>onCheckChange("c3c",v)} theme="green"/>
-              </div>
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* ─── NAVY: Organ-specific ─── */}
-        <div style={{ marginBottom:20 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8, padding:"0 2px" }}>
-            <div style={{ width:4, height:20, background:T.navy.accent, borderRadius:2 }}/>
-            <span style={{ fontSize:12, fontWeight:700, color:T.navy.header, letterSpacing:".04em" }}>臓器別診断基準</span>
-            <span style={{ fontSize:10, color:T.navy.accent, background:T.navy.bg, border:`1px solid ${T.navy.border}`, padding:"1px 8px", borderRadius:20, marginLeft:"auto" }}>個別疾患ガイドライン準拠</span>
-          </div>
-          {relevant.length===0 && noLogic.length===0 && (
-            <div style={{ background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:12, padding:"18px", textAlign:"center" }}>
-              <p style={{ fontSize:12, color:"#94a3b8", margin:0 }}>臓器を選択してください</p>
+        {/* Step 1: Human Body Selection */}
+        {step === 1 && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-[#0F172A]">罹患部位を選択</h2>
+              <p className="text-[#64748B] text-sm mt-1">身体図の部位をタップして所見を確認</p>
             </div>
-          )}
-          {relevant.map(([organId, crit]) => {
-            const oc      = organChecks[organId] ?? {}
-            const orgName = ORGANS.find(o=>o.id===organId)?.name ?? organId
-            let orgResult = null
-            if (typeof crit.verdict === 'function') orgResult = crit.verdict(oc)
-            else if (crit.items) { const cnt=crit.items.filter(i=>oc[i.id]).length; orgResult=cnt>=crit.threshold?"definite":cnt>0?"possible":null }
-            const isPositive = !!orgResult
-            const groups = crit.groups || (crit.items ? [{ label:"診断項目", items:crit.items }] : [])
-            return (
-              <div key={organId} style={{ borderRadius:14, border:`1.5px solid ${isPositive?T.navy.border:"#e2e8f0"}`, background:isPositive?T.navy.bg:"white", marginBottom:10, overflow:"hidden", transition:"all .3s", boxShadow:isPositive?"0 2px 8px rgba(29,78,216,.1)":"0 1px 4px rgba(0,0,0,.05)" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 12px 8px", borderBottom:`1px solid ${isPositive?T.navy.border:"#f1f5f9"}`, background:isPositive?"rgba(29,78,216,.06)":"#f9fafb" }}>
-                  <div style={{ minWidth:0, flex:1 }}>
-                    <div style={{ display:"flex", alignItems:"center", flexWrap:"wrap", gap:6 }}>
-                      <span style={{ fontSize:12, fontWeight:700, color:T.navy.header }}>{orgName}</span>
-                      <OrganVerdictBadge result={orgResult}/>
-                    </div>
-                    <p style={{ fontSize:9, color:"#64748b", margin:"2px 0 0", lineHeight:1.4 }}>{crit.label}</p>
-                  </div>
-                </div>
-                <div style={{ padding:"10px 12px" }}>
-                  {groups.map((group, gi) => (
-                    <div key={gi} style={{ marginBottom:gi<groups.length-1?12:0 }}>
-                      <div style={{ fontSize:9, fontWeight:700, color:T.navy.accent, textTransform:"uppercase", letterSpacing:".06em", marginBottom:6, paddingLeft:2 }}>{group.label}</div>
-                      {group.items.map(item => (
-                        <CheckItem key={item.id} id={`oc-${organId}-${item.id}`} title="" description={item.text}
-                          checked={!!oc[item.id]} onChange={v=>onOrganCheckChange(organId,item.id,v)} theme="navy"/>
-                      ))}
-                    </div>
+
+            <Card className="relative p-8 bg-white overflow-hidden group">
+              <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-30" />
+              <div className="relative aspect-[3/5] w-full max-w-[280px] mx-auto">
+                {/* Human Silhouette SVG */}
+                <svg viewBox="0 0 200 500" className="w-full h-full drop-shadow-2xl">
+                  <path
+                    d="M100,20 C115,20 125,35 125,55 C125,75 115,90 100,90 C85,90 75,75 75,55 C75,35 85,20 100,20 M75,55 L65,70 M125,55 L135,70 M100,90 L100,110 M60,110 L140,110 L150,250 L135,250 L125,110 M60,110 L50,250 L65,250 L75,110 M80,250 L70,480 L95,480 L100,300 M120,250 L130,480 L105,480 L100,300"
+                    fill="#F1F5F9"
+                    stroke="#CBD5E1"
+                    strokeWidth="2"
+                  />
+                  {bodyParts.map(part => (
+                    <g key={part.id} onClick={() => handleOrganClick(part.id)} className="cursor-pointer group/part">
+                      <rect
+                        x={part.x} y={part.y} width={part.w} height={part.h}
+                        className={`transition-all duration-300 ${
+                          findings[part.id] && Object.values(findings[part.id]).some(v => v)
+                          ? "fill-[#16A34A] filter blur-[2px] opacity-60"
+                          : "fill-transparent hover:fill-blue-100"
+                        }`}
+                      />
+                      <circle
+                        cx={part.x} cy={part.y} r="4"
+                        className={`transition-all duration-300 ${
+                          findings[part.id] && Object.values(findings[part.id]).some(v => v)
+                          ? "fill-[#16A34A] animate-pulse"
+                          : "fill-[#94A3B8] group-hover/part:fill-[#16A34A]"
+                        }`}
+                      />
+                    </g>
                   ))}
-                </div>
+                </svg>
               </div>
-            )
-          })}
-          {noLogic.length > 0 && (
-            <div style={{ background:"#fafafa", border:"1px dashed #e2e8f0", borderRadius:12, padding:"10px 14px", marginBottom:10 }}>
-              <p style={{ fontSize:10, color:"#94a3b8", margin:0, lineHeight:1.5 }}><strong>診断基準未収載：</strong>{noLogic.join("・")}</p>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-3">
+              {bodyParts.map(part => (
+                <button
+                  key={part.id}
+                  onClick={() => handleOrganClick(part.id)}
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 text-left ${
+                    selectedOrgan === part.id 
+                    ? "border-[#16A34A] bg-[#F0FDF4] shadow-md scale-[1.02]" 
+                    : "border-white bg-white shadow-sm hover:border-[#E2E8F0]"
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${
+                    findings[part.id] && Object.values(findings[part.id]).some(v => v)
+                    ? "bg-[#16A34A] shadow-[0_0_8px_#16A34A]" : "bg-[#CBD5E1]"
+                  }`} />
+                  <span className="text-sm font-semibold">{part.label}</span>
+                </button>
+              ))}
             </div>
-          )}
-        </div>
 
-        {/* ─── Action buttons ─── */}
-        <button onClick={onProceedSave} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#5b21b6,#7c3aed)", color:"white", fontWeight:700, fontSize:14, boxShadow:"0 4px 16px rgba(124,58,237,.4)", transition:"all .2s", marginBottom:8 }}>
-          <CheckCircle2 size={16}/> 診断結果を記録・保存
-        </button>
-        <button onClick={onReset} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:12, border:"1.5px solid #e2e8f0", cursor:"pointer", background:"white", color:"#94a3b8", fontWeight:600, fontSize:12, transition:"all .2s", marginBottom:8 }}>
-          🗑️ すべてリセット
-        </button>
-        <button onClick={onBack} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:16, border:"1.5px solid #bfdbfe", cursor:"pointer", background:"white", color:"#1d4ed8", fontWeight:700, fontSize:13 }}>
-          <ArrowLeft size={15}/> 臓器選択に戻る
-        </button>
-      </div>
-    </>
-  )
-}
-
-
-// ═══════════════════════════════════════════════
-// STATE C — 診断結果の記録（入力・確認）
-// ═══════════════════════════════════════════════
-function StateC({ session, verdict, onBack, onConfirm }) {
-  const [facility, setFacility] = useState("")
-  const [dept,     setDept]     = useState("")
-  const [doctor,   setDoctor]   = useState("")
-  const [memo,     setMemo]     = useState("")
-  const [saved,    setSaved]    = useState(false)
-
-  const organNames = session.selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean).join("、")
-  const c3c = [session.checks.c3a,session.checks.c3b,session.checks.c3c].filter(Boolean).length
-  const vMeta = VERDICT_META[verdict.final]
-  const vcBg  = T.verdict[verdict.final].bg
-
-  const inp = { width:"100%", padding:"9px 11px", border:"1.5px solid #bfdbfe", borderRadius:10, fontSize:13, boxSizing:"border-box", fontFamily:"inherit", outline:"none", background:"white" }
-  const tdL = { padding:"6px 11px", fontWeight:700, color:"#1e40af", fontSize:11, width:"36%", borderBottom:"1px solid #f1f5f9", verticalAlign:"top" }
-  const tdR = { padding:"6px 11px", color:"#334155", fontSize:11, borderBottom:"1px solid #f1f5f9" }
-
-  const handleConfirm = () => {
-    const rec = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      facility: facility.trim(), dept: dept.trim(),
-      doctor: doctor.trim(), memo: memo.trim(),
-      session: { ...session, organChecks: JSON.parse(JSON.stringify(session.organChecks)) },
-      verdict,
-    }
-    onConfirm(rec)
-    setSaved(true)
-  }
-
-  if (saved) return (
-    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"64px 20px", gap:14, minHeight:"60vh" }}>
-      <CheckCircle2 size={58} color="#10b981"/>
-      <h2 style={{ fontSize:20, fontWeight:700, color:"#1e3a8a", margin:0 }}>保存しました</h2>
-      <p style={{ color:"#64748b", fontSize:13, margin:0 }}>履歴画面から確認できます</p>
-      <button onClick={onBack} style={{ marginTop:8, padding:"12px 28px", borderRadius:16, border:"none", background:"linear-gradient(135deg,#1e40af,#1d4ed8)", color:"white", fontWeight:700, fontSize:14, cursor:"pointer", boxShadow:"0 4px 16px rgba(29,78,216,.4)" }}>
-        履歴を見る
-      </button>
-    </div>
-  )
-
-  return (
-    <div style={{ padding:"14px 10px 32px", maxWidth:680, margin:"0 auto" }}>
-      <h2 style={{ fontSize:15, fontWeight:700, color:"#1e3a8a", marginBottom:4 }}>診断結果の記録</h2>
-      <p style={{ fontSize:11, color:"#64748b", marginBottom:14 }}>面談情報を入力し、今回の診断内容を確認してから保存してください。</p>
-
-      {/* ── Input form ── */}
-      <div style={{ background:"white", borderRadius:16, border:"1px solid #e2e8f0", overflow:"hidden", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
-        <div style={{ padding:"9px 12px", background:"linear-gradient(135deg,#f5f3ff,#ede9fe)", borderBottom:"1px solid #ddd6fe" }}>
-          <span style={{ fontSize:11, fontWeight:700, color:"#5b21b6" }}>面談情報（任意）</span>
-        </div>
-        <div style={{ padding:"12px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-            <div>
-              <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-                <Building2 size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>病院名
-              </label>
-              <input type="text" value={facility} onChange={e=>setFacility(e.target.value)}
-                placeholder="○○大学病院" style={{...inp, fontSize:12}}/>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-                <ClipboardList size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>診療科
-              </label>
-              <input type="text" value={dept} onChange={e=>setDept(e.target.value)}
-                placeholder="消化器内科" style={{...inp, fontSize:12}}/>
-            </div>
-          </div>
-          <div style={{ marginBottom:8 }}>
-            <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-              <User size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>医師名
-            </label>
-            <input type="text" value={doctor} onChange={e=>setDoctor(e.target.value)}
-              placeholder="山田 太郎 先生" style={{...inp, fontSize:12}}/>
-          </div>
-          <div>
-            <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-              📝 メモ（自由入力）
-            </label>
-            <textarea value={memo} onChange={e=>setMemo(e.target.value)}
-              placeholder="所見・次回対応・特記事項など" rows={3}
-              style={{...inp, resize:"vertical", lineHeight:1.55, verticalAlign:"top", fontSize:12}}/>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Result summary ── */}
-      <div style={{ background:"white", borderRadius:16, border:"1px solid #e2e8f0", overflow:"hidden", marginBottom:16, boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
-        <div style={{ padding:"9px 12px", background:"#eff6ff", borderBottom:"1px solid #bfdbfe" }}>
-          <span style={{ fontSize:11, fontWeight:700, color:"#1e40af" }}>今回の診断内容（確認）</span>
-        </div>
-        {/* Verdict banner */}
-        <div style={{ background:vcBg, padding:"12px", textAlign:"center" }}>
-          <p style={{ fontSize:10, color:"rgba(255,255,255,.7)", margin:0 }}>最終判定</p>
-          <p style={{ fontSize:17, fontWeight:700, color:"white", margin:"2px 0 0" }}>{vMeta.ja} ({vMeta.en})</p>
-          {verdict.upgraded && <p style={{ fontSize:10, color:"#fcd34d", margin:"3px 0 0" }}>▲ 臓器別基準により格上げ</p>}
-        </div>
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <tbody>
-            {[
-              ["選択臓器", organNames||"—"],
-              ["IgG4値",   session.igg4Value?`${session.igg4Value} mg/dL`:"未入力"],
-              ["C1",       session.checks.c1?"✓":"—"],
-              ["C2",       session.checks.c2?"✓":"—"],
-              ["C3-a",     session.checks.c3a?"✓":"—"],
-              ["C3-b",     session.checks.c3b?"✓":"—"],
-              ["C3-c",     session.checks.c3c?"✓":"—"],
-              ["C3成立",   verdict.c3Match?`✓（${c3c}/3）`:`×（${c3c}/3）`],
-              ["包括基準", VERDICT_META[verdict.comprehensive].ja],
-            ].map(([l,v])=>(
-              <tr key={l}><td style={tdL}>{l}</td><td style={tdR}>{v}</td></tr>
-            ))}
-            {/* Organ verdicts */}
-            {verdict.organVerdicts && Object.entries(verdict.organVerdicts).map(([oid,res])=>{
-              if(!res) return null
-              const orgName=ORGANS.find(o=>o.id===oid)?.name??oid
-              const OM={definite:{label:"確定診断",bg:"#1e3a8a"},probable:{label:"準確診",bg:"#1d4ed8"},possible:{label:"疑診",bg:"#0891b2"}}
-              const m=OM[res]; if(!m) return null
-              return (
-                <tr key={oid}><td style={tdL}>{orgName}</td><td style={tdR}>
-                  <span style={{ display:"inline-block", background:m.bg, color:"white", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20 }}>{m.label}</span>
-                </td></tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Action buttons ── */}
-      <button onClick={handleConfirm} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#1e40af,#1d4ed8)", color:"white", fontWeight:700, fontSize:14, boxShadow:"0 4px 16px rgba(29,78,216,.4)", marginBottom:8, transition:"all .2s" }}>
-        <CheckCircle2 size={16}/> この内容で履歴に保存
-      </button>
-      <button onClick={onBack} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:16, border:"1.5px solid #bfdbfe", cursor:"pointer", background:"white", color:"#1d4ed8", fontWeight:700, fontSize:13 }}>
-        <ArrowLeft size={15}/> 判定画面に戻る
-      </button>
-    </div>
-  )
-}
-
-
-// ═══════════════════════════════════════════════
-// DETAIL / EDIT MODAL
-// ═══════════════════════════════════════════════
-function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
-  const [editing,    setEditing]    = useState(false)
-  const [facility,   setFacility]   = useState(r.facility||"")
-  const [dept,       setDept]       = useState(r.dept||"")
-  const [doctor,     setDoctor]     = useState(r.doctor||"")
-  const [memo,       setMemo]       = useState(r.memo||"")
-  const [confirmDel, setConfirmDel] = useState(false)
-
-  const c3c    = [r.session.checks.c3a,r.session.checks.c3b,r.session.checks.c3c].filter(Boolean).length
-  const organs = r.session.selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean).join("、")
-  const vM     = VERDICT_META[r.verdict.final]
-  const tdL    = { padding:"6px 11px", fontWeight:700, color:"#1e40af", fontSize:11, width:"36%", borderBottom:"1px solid #f1f5f9", verticalAlign:"top" }
-  const tdR    = { padding:"6px 11px", color:"#334155", fontSize:11, borderBottom:"1px solid #f1f5f9" }
-  const inp    = { width:"100%", padding:"8px 10px", border:"1.5px solid #bfdbfe", borderRadius:9, fontSize:12, boxSizing:"border-box", fontFamily:"inherit", outline:"none", background:"white" }
-
-  const handleSaveEdit = () => {
-    onUpdate({ ...r, facility:facility.trim(), dept:dept.trim(), doctor:doctor.trim(), memo:memo.trim() })
-    setEditing(false)
-  }
-
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.52)", zIndex:200, display:"flex", alignItems:"flex-end", justifyContent:"center" }}
-      onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
-      <div style={{ background:"white", width:"100%", maxWidth:680, borderRadius:"20px 20px 0 0", maxHeight:"90vh", overflowY:"auto", padding:"14px 14px 28px" }}>
-        <div style={{ width:36, height:4, background:"#e2e8f0", borderRadius:2, margin:"0 auto 12px" }}/>
-
-        {/* Header */}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
-          <div style={{ minWidth:0 }}>
-            <h3 style={{ fontSize:14, fontWeight:700, color:"#1e3a8a", margin:0 }}>{r.facility||"（施設名未入力）"}</h3>
-            {r.dept && <p style={{ fontSize:11, color:"#64748b", margin:"2px 0 0" }}>{r.dept}</p>}
-            <p style={{ fontSize:11, color:"#64748b", margin:"2px 0 0" }}>{r.doctor||"（医師名未入力）"}</p>
-            <p style={{ fontSize:10, color:"#94a3b8", margin:"2px 0 0" }}>{new Date(r.date).toLocaleString("ja-JP")}</p>
-          </div>
-          <div style={{ display:"flex", gap:6, flexShrink:0 }}>
-            <button onClick={()=>setEditing(!editing)} style={{ padding:"5px 10px", borderRadius:8, border:"1.5px solid #bfdbfe", background:editing?"#eff6ff":"white", color:"#1d4ed8", fontSize:11, fontWeight:700, cursor:"pointer" }}>
-              {editing ? "✕ キャンセル" : "✏️ 編集"}
-            </button>
-            <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:4 }}><X size={18} color="#64748b"/></button>
-          </div>
-        </div>
-
-        {/* Edit form */}
-        {editing && (
-          <div style={{ background:"#f5f3ff", border:"1.5px solid #ddd6fe", borderRadius:14, padding:12, marginBottom:12 }}>
-            <p style={{ fontSize:10, fontWeight:700, color:"#5b21b6", margin:"0 0 10px" }}>面談情報を編集</p>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
-              <div>
-                <label style={{ fontSize:10, fontWeight:700, color:"#4c1d95", display:"block", marginBottom:3 }}>病院名</label>
-                <input value={facility} onChange={e=>setFacility(e.target.value)} style={inp} placeholder="病院名"/>
-              </div>
-              <div>
-                <label style={{ fontSize:10, fontWeight:700, color:"#4c1d95", display:"block", marginBottom:3 }}>診療科</label>
-                <input value={dept} onChange={e=>setDept(e.target.value)} style={inp} placeholder="診療科"/>
-              </div>
-            </div>
-            <div style={{ marginBottom:8 }}>
-              <label style={{ fontSize:10, fontWeight:700, color:"#4c1d95", display:"block", marginBottom:3 }}>医師名</label>
-              <input value={doctor} onChange={e=>setDoctor(e.target.value)} style={inp} placeholder="医師名"/>
-            </div>
-            <div style={{ marginBottom:10 }}>
-              <label style={{ fontSize:10, fontWeight:700, color:"#4c1d95", display:"block", marginBottom:3 }}>メモ</label>
-              <textarea value={memo} onChange={e=>setMemo(e.target.value)} rows={3}
-                style={{...inp, resize:"vertical", lineHeight:1.5, verticalAlign:"top"}} placeholder="メモ"/>
-            </div>
-            <button onClick={handleSaveEdit} style={{ width:"100%", padding:"10px", borderRadius:12, border:"none", background:"linear-gradient(135deg,#5b21b6,#7c3aed)", color:"white", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              変更を保存
-            </button>
+            <Button 
+              onClick={calculateResults}
+              className="w-full h-14 text-lg shadow-xl shadow-green-100"
+              icon={TrendingUp}
+            >
+              診断スコアを算出
+            </Button>
           </div>
         )}
 
-        {/* Memo display */}
-        {!editing && r.memo && (
-          <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, padding:"8px 11px", marginBottom:10 }}>
-            <p style={{ fontSize:10, fontWeight:700, color:"#92400e", margin:"0 0 3px" }}>📝 メモ</p>
-            <p style={{ fontSize:11, color:"#78350f", margin:0, lineHeight:1.6, whiteSpace:"pre-wrap" }}>{r.memo}</p>
-          </div>
-        )}
-
-        {/* Verdict banner */}
-        <div style={{ background:T.verdict[r.verdict.final].bg, borderRadius:12, padding:"12px", textAlign:"center", marginBottom:12 }}>
-          <p style={{ fontSize:10, color:"rgba(255,255,255,.7)", margin:0 }}>最終判定</p>
-          <p style={{ fontSize:17, fontWeight:700, color:"white", margin:"2px 0 0" }}>{vM.ja} ({vM.en})</p>
-          {r.verdict.upgraded && <p style={{ fontSize:10, color:"#fcd34d", margin:"3px 0 0" }}>▲ 臓器別基準により格上げ</p>}
-        </div>
-
-        {/* Summary table */}
-        <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:12 }}>
-          <tbody>
-            {[["選択臓器",organs||"—"],["IgG4値",r.session.igg4Value?`${r.session.igg4Value} mg/dL`:"未入力"],["C1",r.session.checks.c1?"✓":"—"],["C2",r.session.checks.c2?"✓":"—"],["C3-a",r.session.checks.c3a?"✓":"—"],["C3-b",r.session.checks.c3b?"✓":"—"],["C3-c",r.session.checks.c3c?"✓":"—"],["C3成立",r.verdict.c3Match?`✓(${c3c}/3)`:`×(${c3c}/3)`],["包括基準",VERDICT_META[r.verdict.comprehensive].ja]].map(([l,v])=>(
-              <tr key={l}><td style={tdL}>{l}</td><td style={tdR}>{v}</td></tr>
-            ))}
-            {r.verdict.organVerdicts && Object.entries(r.verdict.organVerdicts).map(([oid,res])=>{
-              if(!res) return null
-              const orgName=ORGANS.find(o=>o.id===oid)?.name??oid
-              const OM={definite:{label:"確定診断",bg:"#1e3a8a"},probable:{label:"準確診",bg:"#1d4ed8"},possible:{label:"疑診",bg:"#0891b2"}}
-              const m=OM[res]; if(!m) return null
-              return <tr key={oid}><td style={tdL}>{orgName}</td><td style={tdR}><span style={{ display:"inline-block", background:m.bg, color:"white", fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:20 }}>{m.label}</span></td></tr>
-            })}
-          </tbody>
-        </table>
-
-        {/* Delete */}
-        {!confirmDel ? (
-          <button onClick={()=>setConfirmDel(true)} style={{ width:"100%", padding:"10px", borderRadius:12, border:"1.5px solid #fecaca", background:"white", color:"#ef4444", fontWeight:600, fontSize:12, cursor:"pointer", marginBottom:8 }}>
-            🗑️ この記録を削除
-          </button>
-        ) : (
-          <div style={{ background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:12, padding:"12px", marginBottom:8 }}>
-            <p style={{ fontSize:12, fontWeight:700, color:"#b91c1c", margin:"0 0 10px", textAlign:"center" }}>本当に削除しますか？この操作は元に戻せません。</p>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>setConfirmDel(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:"1.5px solid #e2e8f0", background:"white", color:"#64748b", fontWeight:600, fontSize:12, cursor:"pointer" }}>キャンセル</button>
-              <button onClick={()=>{ onDelete(r.id); onClose() }} style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:"#ef4444", color:"white", fontWeight:700, fontSize:12, cursor:"pointer" }}>削除する</button>
-            </div>
-          </div>
-        )}
-
-        <button onClick={onClose} style={{ width:"100%", padding:"11px", borderRadius:12, border:"1.5px solid #bfdbfe", background:"white", color:"#1d4ed8", fontWeight:700, fontSize:13, cursor:"pointer" }}>閉じる</button>
-      </div>
-    </div>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// STATE D — 履歴
-// ═══════════════════════════════════════════════
-const LB={ definite:"#1e3a8a", probable:"#1d4ed8", possible:"#0891b2", negative:"#94a3b8" }
-
-function StateD({ records, onNewSession, onDelete, onUpdate }) {
-  const [search, setSearch] = useState("")
-  const [sort,   setSort]   = useState("date_desc")
-  const [sel,    setSel]    = useState(null)
-
-  const filtered = useMemo(()=>{
-    const q = search.toLowerCase()
-    return records
-      .filter(r=>(r.facility||"").toLowerCase().includes(q)||(r.doctor||"").toLowerCase().includes(q))
-      .sort((a,b)=>{
-        if(sort==="date_desc") return new Date(b.date)-new Date(a.date)
-        if(sort==="date_asc")  return new Date(a.date)-new Date(b.date)
-        const o={definite:0,probable:1,possible:2,negative:3}
-        return (o[a.verdict.final]??9)-(o[b.verdict.final]??9)
-      })
-  },[records,search,sort])
-
-  function exportCSV(){
-    const rows=[["日時","施設名","診療科","医師名","メモ","選択臓器","IgG4値","C1","C2","C3-a","C3-b","C3-c","C3成立","包括基準","最終判定","格上げ"]]
-    records.forEach(r=>{
-      const orgs=r.session.selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).join("|")
-      rows.push([new Date(r.date).toLocaleString("ja-JP"),r.facility||"",r.dept||"",r.doctor||"",r.memo||"",orgs,r.session.igg4Value,r.session.checks.c1?1:0,r.session.checks.c2?1:0,r.session.checks.c3a?1:0,r.session.checks.c3b?1:0,r.session.checks.c3c?1:0,r.verdict.c3Match?1:0,VERDICT_META[r.verdict.comprehensive].ja,VERDICT_META[r.verdict.final].ja,r.verdict.upgraded?1:0])
-    })
-    const csv="\uFEFF"+rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));a.download=`IgG4RD_${new Date().toISOString().slice(0,10)}.csv`;a.click()
-  }
-
-  return (
-    <div style={{ padding:"14px 10px 24px", maxWidth:680, margin:"0 auto" }}>
-      <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-        <div style={{ flex:1, position:"relative" }}>
-          <Search size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }}/>
-          <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="施設名・医師名で検索..."
-            style={{ width:"100%", paddingLeft:30, paddingRight:10, paddingTop:9, paddingBottom:9, border:"1.5px solid #bfdbfe", borderRadius:10, fontSize:13, boxSizing:"border-box", outline:"none" }}/>
-        </div>
-        <select value={sort} onChange={e=>setSort(e.target.value)} style={{ padding:"8px 10px", border:"1.5px solid #bfdbfe", borderRadius:10, fontSize:12, color:"#1e3a8a", background:"white", cursor:"pointer", outline:"none" }}>
-          <option value="date_desc">新しい順</option>
-          <option value="date_asc">古い順</option>
-          <option value="verdict">判定順</option>
-        </select>
-      </div>
-      <p style={{ fontSize:11, color:"#64748b", marginBottom:10 }}>{filtered.length} 件 / 合計 {records.length} 件</p>
-
-      {filtered.length===0 ? (
-        <div style={{ textAlign:"center", padding:"48px 0", color:"#94a3b8" }}>
-          <FileText size={40} style={{ opacity:.3, display:"block", margin:"0 auto 10px" }}/>
-          <p style={{ fontSize:13, margin:0 }}>{records.length===0?"面談記録がありません":"該当する記録が見つかりません"}</p>
-        </div>
-      ) : (
-        <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
-          {filtered.map(r=>{
-            const d = new Date(r.date).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})
-            const orgs = r.session.selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean).join("、")
-            return (
-              <button key={r.id} onClick={()=>setSel(r)}
-                style={{ textAlign:"left", background:"white", borderRadius:12, padding:"11px 12px", border:"1px solid #e2e8f0", borderLeft:`4px solid ${LB[r.verdict.final]||"#cbd5e1"}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, boxShadow:"0 1px 3px rgba(0,0,0,.05)" }}>
-                <div style={{ minWidth:0 }}>
-                  <p style={{ fontSize:13, fontWeight:700, color:"#1e3a8a", margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {r.facility||"（施設名未入力）"}{r.dept?` / ${r.dept}`:""}{r.doctor?` · ${r.doctor}`:""}
-                  </p>
-                  <p style={{ fontSize:10, color:"#64748b", margin:"3px 0 0" }}>{d}{orgs&&`　${orgs.slice(0,18)}${orgs.length>18?"…":""}`}</p>
-                  {r.memo && <p style={{ fontSize:10, color:"#92400e", margin:"2px 0 0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {r.memo}</p>}
-                </div>
-                <span style={{ flexShrink:0, fontSize:10, fontWeight:700, padding:"3px 9px", borderRadius:20, background:LB[r.verdict.final]||"#94a3b8", color:"white", whiteSpace:"nowrap" }}>
-                  {VERDICT_META[r.verdict.final].ja}
-                </span>
+        {/* Step 2: Findings Checklist */}
+        {step === 2 && selectedOrgan && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setStep(1)}
+                className="p-2 hover:bg-[#F1F5F9] rounded-full transition-colors"
+              >
+                <ArrowLeft className="text-[#64748B]" />
               </button>
-            )
-          })}
+              <h2 className="text-xl font-bold text-[#0F172A]">{diagnosticCriteria[selectedOrgan]?.title || bodyParts.find(p => p.id === selectedOrgan).label}</h2>
+            </div>
+
+            <Card className="p-2">
+              <div className="bg-[#F8FAFC] p-4 rounded-lg mb-2">
+                <p className="text-sm text-[#64748B] leading-relaxed">以下の典型的所見に当てはまる項目をチェックしてください。</p>
+              </div>
+              <div className="space-y-1">
+                {(diagnosticCriteria[selectedOrgan]?.items || ["CT上の結節・腫大", "組織診でのリンパ球浸潤"]).map((item, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => toggleFinding(item)}
+                    className="w-full flex items-center justify-between p-4 rounded-lg hover:bg-[#F8FAFC] transition-colors group"
+                  >
+                    <span className="text-[#334155] font-medium text-left pr-4">{item}</span>
+                    <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
+                      findings[selectedOrgan]?.[item] 
+                      ? "bg-[#16A34A] border-[#16A34A] scale-110 shadow-md" 
+                      : "border-[#E2E8F0] bg-white group-hover:border-[#CBD5E1]"
+                    }`}>
+                      {findings[selectedOrgan]?.[item] && <CheckCircle2 size={16} className="text-white" />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </Card>
+
+            <Button onClick={() => setStep(1)} className="w-full h-14" variant="primary">
+              選択を確定して身体図に戻る
+            </Button>
+          </div>
+        )}
+
+        {/* Step 3: Diagnostic Results */}
+        {step === 3 && results && (
+          <div className="space-y-6 animate-in zoom-in-95 duration-500">
+            <div className="text-center space-y-2">
+              <div className="inline-block p-3 bg-[#F0FDF4] rounded-2xl mb-2">
+                <Stethoscope size={32} className="text-[#16A34A]" />
+              </div>
+              <h2 className="text-2xl font-bold text-[#0F172A]">診断サポート結果</h2>
+            </div>
+
+            <Card className="p-8 text-center bg-gradient-to-b from-white to-[#F8FAFC]">
+              <div className="mb-6">
+                <p className="text-[#64748B] font-medium mb-1">IgG4-RD 可能性スコア</p>
+                <div className="text-6xl font-black text-[#16A34A] tracking-tighter italic">
+                  {results.probability}
+                </div>
+              </div>
+              
+              <div className="h-px bg-[#E2E8F0] w-full my-6" />
+              
+              <div className="text-left space-y-4">
+                <div className="flex items-start gap-3 bg-white p-4 rounded-xl border border-[#E2E8F0] shadow-sm">
+                  <div className="mt-1 text-[#16A34A]"><CheckCircle2 size={20} /></div>
+                  <p className="text-[#334155] leading-relaxed font-medium">{results.summary}</p>
+                </div>
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Button variant="secondary" className="h-14" onClick={() => setShowSummary(true)} icon={FileText}>
+                サマリー出力
+              </Button>
+              <Button className="h-14" onClick={() => setStep(1)} icon={History}>
+                再検診
+              </Button>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Summary Modal */}
+      {showSummary && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-[#0F172A]/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <Card className="w-full max-w-sm max-h-[80vh] flex flex-col shadow-2xl scale-100 animate-in zoom-in-95 duration-300">
+            <div className="p-4 border-b border-[#E2E8F0] flex justify-between items-center bg-white sticky top-0">
+              <h3 className="font-bold text-[#0F172A]">診断サマリー報告</h3>
+              <button onClick={() => setShowSummary(false)} className="p-1 hover:bg-[#F1F5F9] rounded-full transition-colors">
+                <X size={20} className="text-[#64748B]" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto bg-[#F8FAFC]">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest">Confirmed Findings</p>
+                  {Object.entries(findings).map(([organId, items]) => {
+                    const activeItems = Object.entries(items).filter(([_, v]) => v);
+                    if (activeItems.length === 0) return null;
+                    return (
+                      <div key={organId} className="bg-white p-4 rounded-xl shadow-sm border border-[#E2E8F0]">
+                        <p className="font-bold text-[#16A34A] text-sm mb-2 border-b border-[#F0FDF4] pb-1">
+                          {bodyParts.find(p => p.id === organId)?.label}
+                        </p>
+                        <ul className="space-y-2">
+                          {activeItems.map(([item]) => (
+                            <li key={item} className="text-xs text-[#475569] flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 bg-[#16A34A] rounded-full" />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-[#E2E8F0] bg-white">
+              <Button className="w-full h-12" onClick={() => window.print()} icon={Download}>
+                PDFとして保存
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
 
-      <div style={{ display:"flex", flexDirection:"column", gap:8, marginTop:16 }}>
-        <button onClick={exportCSV} disabled={!records.length}
-          style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"13px", borderRadius:16, border:"none", cursor:records.length?"pointer":"not-allowed", background:records.length?"linear-gradient(135deg,#1e40af,#1d4ed8)":"#e2e8f0", color:records.length?"white":"#94a3b8", fontWeight:700, fontSize:14, boxShadow:records.length?"0 4px 16px rgba(29,78,216,.4)":"none" }}>
-          <Download size={15}/> 全記録をCSVで出力
-        </button>
-        <button onClick={onNewSession}
-          style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:16, border:"1.5px solid #bfdbfe", cursor:"pointer", background:"white", color:"#1d4ed8", fontWeight:700, fontSize:13 }}>
-          <PlusCircle size={15}/> 新しい面談を開始
-        </button>
-      </div>
-
-      {sel && (
-        <RecordModal
-          record={sel}
-          onClose={()=>setSel(null)}
-          onDelete={id=>{ onDelete(id); setSel(null) }}
-          onUpdate={updated=>{ onUpdate(updated); setSel({ ...sel, ...updated }) }}
-        />
-      )}
-    </div>
-  )
-}
-
-
-// ═══════════════════════════════════════════════
-// HEADER
-// ═══════════════════════════════════════════════
-function AppHeader({ current, onNavigate }) {
-  const NAV=[{s:"A",label:"臓器選択",icon:<Stethoscope size={12}/>},{s:"B",label:"判定",icon:<Activity size={12}/>},{s:"D",label:"履歴",icon:<History size={12}/>}]
-  return (
-    <header style={{ background:"linear-gradient(135deg,#0f172a,#1e3a8a)", color:"white", padding:"11px 12px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, position:"sticky", top:0, zIndex:50, boxShadow:"0 2px 16px rgba(0,0,0,.35)", minHeight:0 }}>
-      <h1 style={{ fontSize:15, fontWeight:700, margin:0, letterSpacing:".04em", lineHeight:1, whiteSpace:"nowrap", flexShrink:0 }}>IgG4-RD 診断支援</h1>
-      <nav style={{ display:"flex", gap:4, flexShrink:0 }}>
-        {NAV.map(({s,label,icon})=>(
-          <button key={s} onClick={()=>onNavigate(s)} style={{ display:"flex", alignItems:"center", gap:3, padding:"5px 9px", borderRadius:20, border:"none", cursor:"pointer", fontSize:10, fontWeight:700, whiteSpace:"nowrap", flexShrink:0, background:current===s?"#3b82f6":"rgba(255,255,255,.1)", color:"white", transition:"all .2s", boxShadow:current===s?"0 2px 8px rgba(59,130,246,.5)":"none" }}>
-            {icon}{label}
-          </button>
-        ))}
+      {/* Bottom Nav */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-[#E2E8F0] px-6 py-3 z-50">
+        <div className="max-w-md mx-auto flex justify-between items-center">
+          {[
+            { icon: Activity, active: step === 1, label: "診断" },
+            { icon: ClipboardList, active: step === 3, label: "結果" },
+            { icon: Search, active: false, label: "検索" },
+            { icon: Building2, active: false, label: "施設" }
+          ].map((item, idx) => (
+            <button key={idx} className="flex flex-col items-center gap-1 group">
+              <item.icon size={22} className={`transition-all duration-300 ${item.active ? "text-[#16A34A] scale-110" : "text-[#94A3B8] group-hover:text-[#64748B]"}`} />
+              <span className={`text-[10px] font-bold transition-all ${item.active ? "text-[#16A34A]" : "text-[#94A3B8]"}`}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
       </nav>
-    </header>
-  )
-}
-
-// ═══════════════════════════════════════════════
-// APP ROOT
-// ═══════════════════════════════════════════════
-const INIT={ selectedOrgans:[], igg4Value:"", checks:{c1:false,c2:false,c3a:false,c3b:false,c3c:false}, organChecks:{} }
-
-export default function App() {
-  const [appState, setAppState] = useState("A")
-  const [session,  setSession]  = useState(INIT)
-  const [records,  setRecords]  = useState(loadRecords)
-  const verdict = useMemo(()=>calcVerdict(session),[session])
-
-  const goTo          = useCallback(s=>{ setAppState(s); window.scrollTo({top:0,behavior:"smooth"}) }, [])
-  const toggleOrgan   = useCallback(id=>setSession(p=>({ ...p, selectedOrgans: p.selectedOrgans.includes(id) ? p.selectedOrgans.filter(o=>o!==id) : [...p.selectedOrgans,id] })), [])
-  const onCheckChange = useCallback((k,v)=>setSession(p=>({ ...p, checks:{ ...p.checks,[k]:v } })), [])
-  const onIgg4Change  = useCallback(v=>setSession(p=>({ ...p, igg4Value:v })), [])
-  const onOrganCheckChange = useCallback((oid,iid,v)=>setSession(p=>({ ...p, organChecks:{ ...p.organChecks,[oid]:{ ...(p.organChecks[oid]??{}),[iid]:v } } })), [])
-  const onReset       = useCallback(()=>setSession(INIT), [])
-
-  const onConfirm = useCallback(rec=>{
-    const next = [...records, rec]
-    setRecords(next); saveRecords(next)
-    goTo("D")
-  }, [records, goTo])
-
-  const onDelete = useCallback(id=>{
-    const next = records.filter(r=>r.id!==id)
-    setRecords(next); saveRecords(next)
-  }, [records])
-
-  const onUpdate = useCallback(updated=>{
-    const next = records.map(r=>r.id===updated.id ? updated : r)
-    setRecords(next); saveRecords(next)
-  }, [records])
-
-  const onNewSession = useCallback(()=>{ setSession(INIT); goTo("A") }, [goTo])
-
-  return (
-    <div style={{ minHeight:"100vh", background:"#f8faff", fontFamily:"'Noto Sans JP','Hiragino Sans','Yu Gothic UI',sans-serif" }}>
-      <AppHeader current={appState} onNavigate={goTo}/>
-      {appState==="A" && (
-        <StateA session={session} onToggle={toggleOrgan} onProceed={()=>goTo("B")} onReset={onReset}/>
-      )}
-      {appState==="B" && (
-        <StateB session={session} verdict={verdict}
-          onCheckChange={onCheckChange} onIgg4Change={onIgg4Change} onOrganCheckChange={onOrganCheckChange}
-          onBack={()=>goTo("A")} onProceedSave={()=>goTo("C")} onReset={onReset}/>
-      )}
-      {appState==="C" && (
-        <StateC session={session} verdict={verdict} onBack={()=>goTo("B")} onConfirm={onConfirm}/>
-      )}
-      {appState==="D" && (
-        <StateD records={records} onNewSession={onNewSession} onDelete={onDelete} onUpdate={onUpdate}/>
-      )}
     </div>
-  )
-}
+  );
+};
 
+export default App;
