@@ -496,8 +496,35 @@ const VERDICT_META = {
 }
 
 // ── localStorage ──
-function loadRecords() { try { return JSON.parse(localStorage.getItem("igg4_v2")||"[]") } catch { return [] } }
-function saveRecords(r){ localStorage.setItem("igg4_v2", JSON.stringify(r)) }
+// ── LocalStorage helpers ──────────────────────────────
+const LS_RECORDS = "igg4_v2";
+const LS_DRAFT   = "igg4_draft";
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(LS_RECORDS)||"[]") }
+  catch { return [] }
+}
+function saveRecords(r) {
+  localStorage.setItem(LS_RECORDS, JSON.stringify(r))
+}
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(LS_DRAFT);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null }
+}
+function saveDraft(session) {
+  try { localStorage.setItem(LS_DRAFT, JSON.stringify(session)) }
+  catch {}
+}
+function clearDraft() {
+  localStorage.removeItem(LS_DRAFT)
+}
+function clearAllRecords() {
+  localStorage.removeItem(LS_RECORDS)
+  localStorage.removeItem(LS_DRAFT)
+}
 
 // ═══════════════════════════════════════════════
 // MEDICAL BODY SILHOUETTE
@@ -797,6 +824,14 @@ function StateA({ session, onToggle, onProceed, onReset }) {
 
   return (
     <div style={{ padding:"14px 10px 20px", maxWidth:860, margin:"0 auto" }}>
+      {/* Draft restore banner */}
+      {session.selectedOrgans.length > 0 && (
+        <div style={{ background:"#fffbeb", border:"1px solid #fde68a", borderRadius:10, padding:"8px 12px", marginBottom:10, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+          <span style={{ fontSize:11, color:"#92400e" }}>📋 前回の入力を自動復元しました</span>
+          <button onClick={onReset} style={{ fontSize:10, color:"#b45309", background:"none", border:"1px solid #fcd34d", borderRadius:6, padding:"2px 8px", cursor:"pointer", fontWeight:600 }}>クリア</button>
+        </div>
+      )}
+
       {/* Title */}
       <div style={{ textAlign:"center", marginBottom:10 }}>
         <h2 style={{ fontSize:16, fontWeight:700, color:"#1e3a8a", margin:0 }}>関連臓器を選択</h2>
@@ -1445,7 +1480,8 @@ function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
 // ═══════════════════════════════════════════════
 const LB={ definite:"#1e3a8a", probable:"#1d4ed8", possible:"#0891b2", negative:"#94a3b8" }
 
-function StateD({ records, onNewSession, onDelete, onUpdate }) {
+function StateD({ records, onNewSession, onDelete, onUpdate, onClearAll }) {
+  const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [search, setSearch] = useState("")
   const [sort,   setSort]   = useState("date_desc")
   const [sel,    setSel]    = useState(null)
@@ -1474,6 +1510,24 @@ function StateD({ records, onNewSession, onDelete, onUpdate }) {
 
   return (
     <div style={{ padding:"14px 10px 24px", maxWidth:680, margin:"0 auto" }}>
+      {/* ── 一括削除エリア ── */}
+      <div style={{ marginBottom:12 }}>
+        {!confirmClearAll ? (
+          <button onClick={()=>setConfirmClearAll(true)}
+            style={{ width:"100%", padding:"9px", borderRadius:12, border:"1.5px solid #fecaca", background:"white", color:"#ef4444", fontWeight:600, fontSize:12, cursor:"pointer" }}>
+            🗑️ すべての履歴を即座に消去
+          </button>
+        ) : (
+          <div style={{ background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:12, padding:"12px" }}>
+            <p style={{ fontSize:12, fontWeight:700, color:"#b91c1c", margin:"0 0 10px", textAlign:"center" }}>本当にすべての履歴を削除しますか？（元に戻せません）</p>
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>setConfirmClearAll(false)} style={{ flex:1, padding:"9px", borderRadius:10, border:"1.5px solid #e2e8f0", background:"white", color:"#64748b", fontWeight:600, fontSize:12, cursor:"pointer" }}>キャンセル</button>
+              <button onClick={()=>{ onClearAll(); setConfirmClearAll(false) }} style={{ flex:1, padding:"9px", borderRadius:10, border:"none", background:"#ef4444", color:"white", fontWeight:700, fontSize:12, cursor:"pointer" }}>すべて削除する</button>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div style={{ display:"flex", gap:8, marginBottom:10 }}>
         <div style={{ flex:1, position:"relative" }}>
           <Search size={13} style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", color:"#94a3b8" }}/>
@@ -1567,20 +1621,26 @@ const INIT={ selectedOrgans:[], igg4Value:"", checks:{c1:false,c2:false,c3a:fals
 
 function App() {
   const [appState, setAppState] = useState("A")
-  const [session,  setSession]  = useState(INIT)
+  // Restore draft session from localStorage if available
+  const [session,  setSession]  = useState(() => loadDraft() || INIT)
   const [records,  setRecords]  = useState(loadRecords)
   const verdict = useMemo(()=>calcVerdict(session),[session])
+
+  // Auto-save draft whenever session changes
+  useEffect(() => { saveDraft(session) }, [session])
 
   const goTo          = useCallback(s=>{ setAppState(s); window.scrollTo({top:0,behavior:"smooth"}) }, [])
   const toggleOrgan   = useCallback(id=>setSession(p=>({ ...p, selectedOrgans: p.selectedOrgans.includes(id) ? p.selectedOrgans.filter(o=>o!==id) : [...p.selectedOrgans,id] })), [])
   const onCheckChange = useCallback((k,v)=>setSession(p=>({ ...p, checks:{ ...p.checks,[k]:v } })), [])
   const onIgg4Change  = useCallback(v=>setSession(p=>({ ...p, igg4Value:v })), [])
   const onOrganCheckChange = useCallback((oid,iid,v)=>setSession(p=>({ ...p, organChecks:{ ...p.organChecks,[oid]:{ ...(p.organChecks[oid]??{}),[iid]:v } } })), [])
-  const onReset       = useCallback(()=>setSession(INIT), [])
+  const onReset       = useCallback(()=>{ clearDraft(); setSession(INIT) }, [])
 
   const onConfirm = useCallback(rec=>{
     const next = [...records, rec]
     setRecords(next); saveRecords(next)
+    clearDraft()          // clear draft after confirmed save
+    setSession(INIT)      // reset session
     goTo("D")
   }, [records, goTo])
 
@@ -1594,7 +1654,12 @@ function App() {
     setRecords(next); saveRecords(next)
   }, [records])
 
-  const onNewSession = useCallback(()=>{ setSession(INIT); goTo("A") }, [goTo])
+  const onClearAll = useCallback(()=>{
+    clearAllRecords(); clearDraft()
+    setRecords([]); setSession(INIT)
+  }, [])
+
+  const onNewSession = useCallback(()=>{ clearDraft(); setSession(INIT); goTo("A") }, [goTo])
 
   return (
     <div style={{ minHeight:"100vh", background:"#f8faff", fontFamily:"'Noto Sans JP','Hiragino Sans','Yu Gothic UI',sans-serif" }}>
@@ -1611,7 +1676,7 @@ function App() {
         <StateC session={session} verdict={verdict} onBack={()=>goTo("B")} onConfirm={onConfirm}/>
       )}
       {appState==="D" && (
-        <StateD records={records} onNewSession={onNewSession} onDelete={onDelete} onUpdate={onUpdate}/>
+        <StateD records={records} onNewSession={onNewSession} onDelete={onDelete} onUpdate={onUpdate} onClearAll={onClearAll}/>
       )}
     </div>
   )
