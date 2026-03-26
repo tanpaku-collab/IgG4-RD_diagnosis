@@ -364,31 +364,114 @@ const ORGAN_CRITERIA = {
 
   // ── 4. IgG4関連硬化性胆管炎（IgG4-SC）
   bile_duct: {
-    label:"IgG4関連硬化性胆管炎（IgG4-SC）臨床診断基準",
+    label:"IgG4関連硬化性胆管炎 臨床診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const img  = has("sc_img")
-      const IgG4 = has("sc_IgG4")
-      const aip  = has("sc_aip")
-      const path = has("sc_path")
-      const excl = has("sc_excl")
-      // Definite: 画像 + 病理 (or AIP合併 + IgG4高値)
-      if (img && path) return "definite"
-      if (img && aip && IgG4) return "definite"
-      // Probable: 画像 + IgG4高値 + 除外
-      if (img && IgG4 && excl) return "probable"
-      // Possible: 画像 + 除外
-      if (img && excl) return "possible"
+      // Ⅰ. 胆管狭窄像
+      const Ia  = has("sc_Ia")
+      const Ib  = has("sc_Ib")
+      const I   = Ia || Ib
+      // Ⅱ. 胆管壁肥厚像
+      const IIa = has("sc_IIa")
+      const IIb = has("sc_IIb")
+      const II  = IIa || IIb
+      // Ⅲ. 血清IgG4高値
+      const III = has("sc_III")
+      // Ⅳ. 病理所見
+      const IVa = has("sc_IVa")
+      const IVb = has("sc_IVb")
+      const IVc = has("sc_IVc")
+      // Ⅴ. 胆管外病変
+      const Va  = has("sc_Va")
+      const Vb  = has("sc_Vb")
+      // Ⅵ. ステロイド治療効果
+      const VI  = has("sc_VI")
+
+      // ─── 確定診断群 ───
+      // 1. Va AND (Ia OR Ib) AND (IIa OR IIb) AND (III OR VI)
+      if (Va && I && II && (III || VI)) return "definite"
+      // 2. Va AND Ia AND IIa AND IVb AND (III OR VI)
+      if (Va && Ia && IIa && IVb && (III || VI)) return "definite"
+      // 3. Ia AND IIa AND III AND (IVa OR VI)
+      if (Ia && IIa && III && (IVa || VI)) return "definite"
+      // 4. IVc 単独（病理組織学的確診）
+      if (IVc) return "definite"
+
+      // ─── 準確診群 ───
+      // 1. Va AND (Ia OR Ib) AND (IIa OR IIb)
+      if (Va && I && II) return "probable"
+      // 2. Va AND Ia AND IIa AND IVb
+      if (Va && Ia && IIa && IVb) return "probable"
+      // 3. Va AND (Ia OR Ib) AND IIb AND VI
+      if (Va && I && IIb && VI) return "probable"
+      // 4. Ia AND IIa AND IVa
+      if (Ia && IIa && IVa) return "probable"
+      // 5. Ia AND IIa AND III AND IVb
+      if (Ia && IIa && III && IVb) return "probable"
+      // 6. Ib AND IIa AND III AND VI
+      if (Ib && IIa && III && VI) return "probable"
+
+      // ─── 疑診群 ───
+      // 1. Va AND (Ia OR Ib) AND IIa
+      if (Va && I && IIa) return "possible"
+      // 2. Va AND Ib AND IIb AND III
+      if (Va && Ib && IIb && III) return "possible"
+      // 3. Ia AND IIa AND (III OR Vb OR VI)
+      if (Ia && IIa && (III || Vb || VI)) return "possible"
+      // 4. Ib AND IIb AND III AND VI
+      if (Ib && IIb && III && VI) return "possible"
+
       return null
     },
     groups:[
-      { label:"診断項目", items:[
-        { id:"sc_img",  text:"胆管画像：胆管壁肥厚・多発狭窄（ERCP/MRCP/CT）" },
-        { id:"sc_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"sc_aip",  text:"自己免疫性膵炎（AIP）の合併" },
-        { id:"sc_path", text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"sc_excl", text:"胆管癌・原発性硬化性胆管炎（PSC）の除外" },
-      ]},
+      {
+        label:"Ⅰ. 肝内/肝外胆管狭窄像",
+        items:[
+          { id:"sc_Ia", text:"Ia：ERC（内視鏡的逆行性胆管造影）" },
+          { id:"sc_Ib", text:"Ib：MRCP（磁気共鳴胆管膵管撮影）" },
+        ]
+      },
+      {
+        label:"Ⅱ. 胆管壁肥厚像",
+        items:[
+          { id:"sc_IIa", text:"IIa：EUS / IDUS（超音波内視鏡）" },
+          { id:"sc_IIb", text:"IIb：CT / MRI / US（体外式超音波）" },
+        ]
+      },
+      {
+        label:"Ⅲ. 血清学的所見",
+        items:[
+          { id:"sc_III", text:"高IgG4血症（≥135 mg/dL）" },
+        ]
+      },
+      {
+        label:"Ⅳ. 病理所見",
+        noteItems:[
+          "i)   高度のリンパ球・形質細胞の浸潤と線維化",
+          "ii)  IgG4陽性形質細胞浸潤（>10/HPF）",
+          "iii) 花筵状線維化（storiform fibrosis, SF）",
+          "iv)  閉塞性静脈炎（obliterative phlebitis, OP）",
+          "v)   腫瘍細胞を認めない",
+        ],
+        items:[
+          { id:"sc_IVa", text:"IVa：i) ii) v) を認める" },
+          { id:"sc_IVb", text:"IVb：v) を認める（腫瘍細胞なし）" },
+          { id:"sc_IVc", text:"IVc：i)〜v) の全てと iii) iv) の少なくとも1つを認める（病理組織学的確診）" },
+        ]
+      },
+      {
+        label:"Ⅴ. 胆管外病変",
+        items:[
+          { id:"sc_Va", text:"Va：1型自己免疫性膵炎（AIP）の合併" },
+          { id:"sc_Vb", text:"Vb：IgG4関連涙腺・唾液腺炎、後腹膜線維症、腎臓病" },
+        ]
+      },
+      {
+        label:"Ⅵ. ステロイド治療効果",
+        items:[
+          { id:"sc_VI", text:"Ⅵ：ステロイド治療後2週間以内に胆管病変の改善を認める" },
+        ]
+      },
     ],
   },
 
