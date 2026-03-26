@@ -296,45 +296,81 @@ const ORGAN_CRITERIA = {
     label:"IgG4関連ミクリッツ病診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const bilat = has("mik_bilat")
-      const IgG4  = has("mik_IgG4")
-      const path  = has("mik_path")
-      const excl  = has("mik_excl")   // 他疾患除外
-      if (bilat && IgG4 && path) return "definite"
-      if (bilat && IgG4 && excl) return "probable"
-      if (bilat && excl)         return "possible"
+      const swelling = has("mik_bilat")   // 1. 腺体腫脹
+      const IgG4     = has("mik_IgG4")   // 2. 血清学的
+      const path     = has("mik_path")   // 3. 病理
+      const excl     = has("mik_excl")   // 4. 除外診断
+      // 確定診断: 1 AND (2 OR 3)
+      // ※除外(4)未チェック時は警告的扱い（判定は出すが注記あり）
+      if (swelling && (IgG4 || path)) return "definite"
+      // 除外のみチェックで他なし → null
       return null
     },
     groups:[
-      { label:"主要所見", items:[
-        { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
-        { id:"mik_IgG4",  text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"mik_path",  text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"mik_excl",  text:"sarcoidosis・Sjögren症候群・悪性リンパ腫など他疾患の除外" },
-      ]},
+      {
+        label:"1. 腺体腫脹",
+        items:[
+          { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
+        ]
+      },
+      {
+        label:"2. 血清学的所見",
+        items:[
+          { id:"mik_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
+        ]
+      },
+      {
+        label:"3. 病理組織所見",
+        items:[
+          { id:"mik_path", text:"涙腺・唾液腺組織においてIgG4陽性形質細胞浸潤（強拡大5視野でIgG4陽性/IgG陽性細胞比 ≥50%）" },
+        ]
+      },
+      {
+        label:"4. 除外診断（臨床的前提条件）",
+        note:"未チェックの場合、除外疾患の鑑別が必要です",
+        items:[
+          { id:"mik_excl", text:"サルコイドーシス・キャッスルマン病・多発血管炎性肉芽腫症・リンパ腫・癌を除外できる" },
+        ]
+      },
     ],
   },
 
   salivary: {
-    label:"IgG4関連ミクリッツ病診断基準（唾液腺）",
+    label:"IgG4関連ミクリッツ病診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const bilat = has("mik_bilat")
-      const IgG4  = has("mik_IgG4")
-      const path  = has("mik_path")
-      const excl  = has("mik_excl")
-      if (bilat && IgG4 && path) return "definite"
-      if (bilat && IgG4 && excl) return "probable"
-      if (bilat && excl)         return "possible"
+      const swelling = has("mik_bilat")
+      const IgG4     = has("mik_IgG4")
+      const path     = has("mik_path")
+      if (swelling && (IgG4 || path)) return "definite"
       return null
     },
     groups:[
-      { label:"主要所見", items:[
-        { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
-        { id:"mik_IgG4",  text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"mik_path",  text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋線維化" },
-        { id:"mik_excl",  text:"他疾患（Sjögren症候群・悪性リンパ腫等）の除外" },
-      ]},
+      {
+        label:"1. 腺体腫脹",
+        items:[
+          { id:"mik_bilat", text:"涙腺・耳下腺・顎下腺のうち2ペア以上の持続性両側腫脹（3ヶ月以上）" },
+        ]
+      },
+      {
+        label:"2. 血清学的所見",
+        items:[
+          { id:"mik_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
+        ]
+      },
+      {
+        label:"3. 病理組織所見",
+        items:[
+          { id:"mik_path", text:"涙腺・唾液腺組織においてIgG4陽性形質細胞浸潤（強拡大5視野でIgG4陽性/IgG陽性細胞比 ≥50%）" },
+        ]
+      },
+      {
+        label:"4. 除外診断（臨床的前提条件）",
+        note:"未チェックの場合、除外疾患の鑑別が必要です",
+        items:[
+          { id:"mik_excl", text:"サルコイドーシス・キャッスルマン病・多発血管炎性肉芽腫症・リンパ腫・癌を除外できる" },
+        ]
+      },
     ],
   },
 
