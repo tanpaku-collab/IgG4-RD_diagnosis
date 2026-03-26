@@ -394,25 +394,60 @@ const ORGAN_CRITERIA = {
 
   // ── 7. IgG4関連大動脈周囲炎/後腹膜線維症
   aorta: {
-    label:"IgG4関連大動脈周囲炎・動脈周囲炎診断基準",
+    label:"IgG4 関連心血管／後腹膜疾患 診断の指針（2023）",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const img  = has("ao_img")
-      const IgG4 = has("ao_IgG4")
-      const path = has("ao_path")
-      const excl = has("ao_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if (img && excl) return "possible"
+      const A1  = has("ao_A1a") || has("ao_A1b") || has("ao_A1c") || has("ao_A1d")
+      const A2  = has("ao_A2")
+      const A3a = has("ao_A3a")
+      const A3a2= has("ao_A3a2")
+      const A3b = has("ao_A3b")
+      const A4  = has("ao_A4")
+      if ((A1 && A3a) || (A1 && A3a2) || (A1 && A2 && A4)) return "definite"
+      if ((A1 && A3b) || (A1 && A4) || A3a || A3a2) return "probable"
+      if ((A1 && A2) || (A3b && !A1 && !A2 && !A4)) return "possible"
       return null
     },
     groups:[
-      { label:"診断項目", items:[
-        { id:"ao_img",  text:"大動脈・腸骨動脈周囲の軟部組織影・肥厚（CT/MRI/PET）" },
-        { id:"ao_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"ao_path", text:"病理：IgG4陽性形質細胞浸潤＋席状線維化・閉塞性静脈炎" },
-        { id:"ao_excl", text:"悪性腫瘍・感染性大動脈瘤・他の結合組織病の除外" },
-      ]},
+      {
+        label:"A1. 画像所見（いずれかをチェック）",
+        items:[
+          { id:"ao_A1a", text:"a) 大動脈および主分枝の周囲に低吸収性の肥厚／軟部陰影" },
+          { id:"ao_A1b", text:"b) 腎盂壁／尿管周囲の軟部陰影" },
+          { id:"ao_A1c", text:"c) 骨盤・傍脊椎の後腹膜軟部陰影" },
+          { id:"ao_A1d", text:"d) 心膜肥厚または心嚢液貯留" },
+        ]
+      },
+      {
+        label:"A2. 血清学的所見",
+        items:[
+          { id:"ao_A2", text:"血清 IgG4 高値（≥135 mg/dL）" },
+        ]
+      },
+      {
+        label:"A3. 病理組織所見",
+        noteItems:[
+          "(i)   リンパ球・形質細胞浸潤と線維化",
+          "(ii)  IgG4 陽性形質細胞浸潤",
+          "       手術標本：>30/HPF かつ IgG4/IgG比 >40%",
+          "       生検標本：>10/HPF かつ IgG4/IgG比 >40%",
+          "(iii) 花筵状線維化（SF）",
+          "(iv)  閉塞性静脈炎（OP）",
+          "(v)   好酸球浸潤：>5/HPF",
+          "(vi)  リンパ濾胞形成",
+        ],
+        items:[
+          { id:"ao_A3a",  text:"a ：(i)＋(ii)＋(iii/iv)　花筵状線維化または閉塞性静脈炎を含む" },
+          { id:"ao_A3a2", text:"a'：(i)＋(ii)＋(v/vi)　好酸球浸潤またはリンパ濾胞形成を含む" },
+          { id:"ao_A3b",  text:"b ：(i)＋(ii)　リンパ球・形質細胞浸潤と線維化＋IgG4陽性細胞浸潤のみ" },
+        ]
+      },
+      {
+        label:"A4. 他臓器病変",
+        items:[
+          { id:"ao_A4", text:"眼・唾液腺・膵・胆道・腎・肺等で包括的/臓器別基準による「確診」または「準確診」" },
+        ]
+      },
     ],
   },
 
