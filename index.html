@@ -187,59 +187,107 @@ const DOT_POS = {
 const ORGAN_CRITERIA = {
   // ── 1. 自己免疫性膵炎（AIP）
   pancreas: {
-    label:"自己免疫性膵炎（AIP）診断基準",
+    label:"自己免疫性膵炎（AIP）臨床診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      // Ia: びまん性腫大
-      const Ia  = has("aip_Ia")
-      // Ib: 限局性腫大 + 2項目以上
-      const IbImg  = has("aip_IbImg")
-      const IbIgG4 = has("aip_IbIgG4")
-      const IbPath = has("aip_IbPath")
-      const IbSteroid = has("aip_IbSteroid")
-      const IbSub = [IbIgG4, IbPath, IbSteroid].filter(Boolean).length >= 2
-      const Ib    = IbImg && IbSub
-      // II: 病理
-      const IIa = has("aip_IIa")
-      const IIb = has("aip_IIb")
-      const II  = IIa || IIb
-      // IVa: 他臓器IgG4関連 + IgG4高値
-      const IVa = has("aip_IVa_organ") && has("aip_IVa_IgG4")
-      // IVb: 他臓器IgG4関連 + 限局性膵腫大
-      const IVb = has("aip_IVb_organ") && has("aip_IVb_local")
-      // V: ステロイド反応
-      const V   = has("aip_V")
-      // Definite: Ia or (Ib+II) or II
-      if (Ia || (Ib && II) || II) return "definite"
-      // Probable: Ib alone, or IVa, or IVb
-      if (Ib || IVa || IVb) return "probable"
-      // Possible: V (ステロイド反応性)
-      if (V && (IbImg || has("aip_Ia"))) return "possible"
+      // Ⅰ. 膵腫大
+      const Ia  = has("p_Ia")
+      const Ib  = has("p_Ib")
+      // Ⅱ. 主膵管不整狭細像
+      const IIa = has("p_IIa")
+      const IIb = has("p_IIb")
+      // Ⅲ. 血清IgG4高値
+      const III = has("p_III")
+      // Ⅳ. 病理所見
+      const IVa = has("p_IVa")
+      const IVb = has("p_IVb")
+      const IVc = has("p_IVc")
+      // Ⅴ. 膵外病変
+      const Va  = has("p_Va")
+      const Vb  = has("p_Vb")
+      // Ⅵ. 治療反応性
+      const VI  = has("p_VI")
+
+      // Ⅲ/Ⅳb/Ⅴ のカウント用
+      const subCount = [III, IVb, Va, Vb].filter(Boolean).length
+
+      // ─── 確定診断群 ───
+      // 1. Ia AND (Ⅲ OR Ⅳb OR Ⅴa OR Ⅴb)
+      if (Ia && (III || IVb || Va || Vb)) return "definite"
+      // 2. Ib AND Ⅱa AND (Ⅲ/Ⅳb/Ⅴa/Ⅴb のうち2つ以上)
+      if (Ib && IIa && subCount >= 2) return "definite"
+      // 3. Ib AND Ⅱa AND (Ⅲ/Ⅳb/Ⅴa/Ⅴb のうち1つ) AND Ⅵ
+      if (Ib && IIa && subCount >= 1 && VI) return "definite"
+      // 4. Ib AND Ⅱa AND (Ⅲ or Ⅴa or Ⅴb) AND Ⅳb AND Ⅵ
+      if (Ib && IIa && (III || Va || Vb) && IVb && VI) return "definite"
+      // 5. Ⅳa（病理組織学的確診）
+      if (IVa) return "definite"
+
+      // ─── 準確診群 ───
+      // 1. Ib AND Ⅱa AND (Ⅲ OR Ⅳb OR Ⅴa OR Ⅴb)
+      if (Ib && IIa && (III || IVb || Va || Vb)) return "probable"
+      // 2. Ib AND Ⅱb AND (Ⅲ OR Ⅴa OR Ⅴb) AND Ⅳc
+      if (Ib && IIb && (III || Va || Vb) && IVc) return "probable"
+      // 3. Ib AND (Ⅲ OR Ⅳb OR Ⅴa OR Ⅴb) AND Ⅵ
+      if (Ib && (III || IVb || Va || Vb) && VI) return "probable"
+
+      // ─── 疑診群 ───
+      // 1. Ia AND (Ⅱa OR Ⅱb) AND Ⅵ
+      if (Ia && (IIa || IIb) && VI) return "possible"
+      // 2. Ib AND (Ⅱa OR Ⅱb) AND Ⅵ
+      if (Ib && (IIa || IIb) && VI) return "possible"
+
       return null
     },
     groups:[
-      { label:"I型AIP 主膵管像・膵画像", items:[
-        { id:"aip_Ia",    text:"[Ia] びまん性膵腫大 ＋ 膵管びまん性狭細（ワイヤーサイン）" },
-        { id:"aip_IbImg", text:"[Ib] 限局性膵腫大 ＋ 限局性主膵管狭細（狭細部上流拡張なし）" },
-      ]},
-      { label:"補助診断項目（Ib の場合、2項目以上で確定）", items:[
-        { id:"aip_IbIgG4",   text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"aip_IbPath",   text:"病理：膵リンパ球・形質細胞浸潤＋IgG4陽性細胞>10/HPF" },
-        { id:"aip_IbSteroid",text:"ステロイド治療への顕著な反応性" },
-      ]},
-      { label:"II型AIP 病理所見（いずれか）", items:[
-        { id:"aip_IIa", text:"[IIa] IDCP：膵管上皮内好中球浸潤（GEL）＋IgG4陽性細胞 ≦10/HPF" },
-        { id:"aip_IIb", text:"[IIb] リンパ球・形質細胞浸潤＋閉塞性静脈炎＋IgG4陽性細胞>10/HPF" },
-      ]},
-      { label:"他臓器 IgG4 関連病変による傍証", items:[
-        { id:"aip_IVa_organ", text:"[IVa] 他臓器IgG4関連疾患の合併（涙腺・唾液腺・胆管・腎臓等）" },
-        { id:"aip_IVa_IgG4",  text:"[IVa] 血清IgG4値 135 mg/dL 以上" },
-        { id:"aip_IVb_organ", text:"[IVb] 他臓器IgG4関連疾患の合併" },
-        { id:"aip_IVb_local", text:"[IVb] 限局性膵腫大（主膵管像なし）" },
-      ]},
-      { label:"ステロイド反応性（V）", items:[
-        { id:"aip_V", text:"[V] 膵画像異常＋ステロイド投与で改善・消失" },
-      ]},
+      {
+        label:"Ⅰ. 膵腫大",
+        items:[
+          { id:"p_Ia", text:"Ia：びまん性膵腫大（diffuse）" },
+          { id:"p_Ib", text:"Ib：限局性膵腫大（segmental/focal）" },
+        ]
+      },
+      {
+        label:"Ⅱ. 主膵管の不整狭細像",
+        items:[
+          { id:"p_IIa", text:"Ⅱa：ERP（内視鏡的逆行性膵管造影）" },
+          { id:"p_IIb", text:"Ⅱb：MRCP（磁気共鳴胆管膵管撮影）" },
+        ]
+      },
+      {
+        label:"Ⅲ. 血清学的所見",
+        items:[
+          { id:"p_III", text:"血清 IgG4 高値（≥135 mg/dL）" },
+        ]
+      },
+      {
+        label:"Ⅳ. 病理所見",
+        noteItems:[
+          "① 高度のリンパ球・形質細胞浸潤と線維化",
+          "② IgG4陽性形質細胞浸潤（>10/HPF）",
+          "③ 花筵状線維化（storiform fibrosis, SF）",
+          "④ 閉塞性静脈炎（obliterative phlebitis, OP）",
+          "⑤ EUS-FNAで腫瘍細胞を認めない",
+        ],
+        items:[
+          { id:"p_IVa", text:"Ⅳa：①～④のうち3つ以上を認める（病理組織学的確診）" },
+          { id:"p_IVb", text:"Ⅳb：①～④のうち2つを認める" },
+          { id:"p_IVc", text:"Ⅳc：⑤を認める（EUS-FNA）" },
+        ]
+      },
+      {
+        label:"Ⅴ. 膵外病変",
+        items:[
+          { id:"p_Va", text:"Ⅴa：臨床的病変（硬化性胆管炎・涙腺炎・唾液腺炎・後腹膜線維症・腎病変）" },
+          { id:"p_Vb", text:"Ⅴb：病理学的病変（同上の特徴的病理所見を認める）" },
+        ]
+      },
+      {
+        label:"Ⅵ. ステロイド治療反応性",
+        items:[
+          { id:"p_VI", text:"Ⅵ：ステロイド治療により画像上の病変が改善・消失" },
+        ]
+      },
     ],
   },
 
