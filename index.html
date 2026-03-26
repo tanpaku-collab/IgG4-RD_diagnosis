@@ -516,22 +516,49 @@ const ORGAN_CRITERIA = {
     label:"IgG4関連眼疾患診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const lesion = has("ob_lesion")
-      const IgG4   = has("ob_IgG4")
-      const path   = has("ob_path")
-      const excl   = has("ob_excl")
-      if (lesion && path) return "definite"
-      if (lesion && IgG4 && excl) return "probable"
-      if (lesion && excl) return "possible"
+      const img  = has("ob_img")   // 1. 画像所見
+      const path = has("ob_path")  // 2. 病理
+      const IgG4 = has("ob_IgG4") // 3. 血清IgG4
+      // 確定診断: 1 AND 2 AND 3
+      if (img && path && IgG4) return "definite"
+      // 準確診: 1 AND 2
+      if (img && path) return "probable"
+      // 疑診: 1 AND 3
+      if (img && IgG4) return "possible"
       return null
     },
     groups:[
-      { label:"診断項目", items:[
-        { id:"ob_lesion", text:"眼窩・涙腺・眼瞼・外眼筋・眼窩脂肪組織の腫脹性病変" },
-        { id:"ob_IgG4",   text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"ob_path",   text:"病理：IgG4陽性形質細胞浸潤 >10/HPF（涙腺生検等）" },
-        { id:"ob_excl",   text:"肉芽腫性疾患（sarcoid等）・リンパ腫・甲状腺眼症の除外" },
-      ]},
+      {
+        label:"1. 画像所見",
+        items:[
+          { id:"ob_img", text:"涙腺腫大、三叉神経腫大、外眼筋腫大、または眼窩・眼瞼・結膜等の眼組織に腫瘤・肥厚性病変" },
+        ]
+      },
+      {
+        label:"2. 病理組織所見",
+        noteItems:[
+          "・IgG4(+)／IgG(+)細胞比：40% 以上",
+          "・または IgG4陽性細胞数：50個以上／HPF（×400）",
+          "・時に線維化や胚中心を認める",
+          "※MALTリンパ腫はIgG4陽性細胞を含むことがあり慎重な鑑別が必要",
+        ],
+        items:[
+          { id:"ob_path", text:"著明なリンパ球・形質細胞浸潤（上記IgG4陽性細胞の基準を満たす）" },
+        ]
+      },
+      {
+        label:"3. 血清学的所見",
+        items:[
+          { id:"ob_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
+        ]
+      },
+      {
+        label:"4. 除外診断（臨床的前提条件）",
+        note:"未チェックの場合、鑑別疾患の除外が必要です",
+        items:[
+          { id:"ob_excl", text:"Sjögren症候群・リンパ腫・サルコイドーシス・多発血管炎性肉芽腫症・甲状腺眼症・特発性眼窩炎症・感染症等を除外できる" },
+        ]
+      },
     ],
   },
 
