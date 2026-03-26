@@ -420,28 +420,20 @@ const ORGAN_CRITERIA = {
     label:"IgG4 関連心血管／後腹膜疾患 診断の指針（2023）",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      // A1: 画像所見（いずれか）
-      const A1 = has("cv_A1a") || has("cv_A1b") || has("cv_A1c") || has("cv_A1d")
-      // A2: 血清IgG4高値
-      const A2 = has("cv_A2")
-      // A3: 病理
-      const A3a  = has("cv_A3a")   // (i)+(ii)+(iii/iv)
-      const A3a2 = has("cv_A3a2")  // (i)+(ii)+(v/vi)
-      const A3b  = has("cv_A3b")   // (i)+(ii)
-      // A4: 他臓器 確診/準確診
-      const A4 = has("cv_A4")
-      // 確定診断
+      const A1  = has("cv_A1a") || has("cv_A1b") || has("cv_A1c") || has("cv_A1d")
+      const A2  = has("cv_A2")
+      const A3a = has("cv_A3a")
+      const A3a2= has("cv_A3a2")
+      const A3b = has("cv_A3b")
+      const A4  = has("cv_A4")
       if ((A1 && A3a) || (A1 && A3a2) || (A1 && A2 && A4)) return "definite"
-      // 準確診
       if ((A1 && A3b) || (A1 && A4) || A3a || A3a2) return "probable"
-      // 疑診
-      if (A1 && (A2 || A3b)) return "possible"
+      if ((A1 && A2) || (A3b && !A1 && !A2 && !A4)) return "possible"
       return null
     },
     groups:[
       {
         label:"A1. 画像所見（いずれかをチェック）",
-        note:"大動脈/主分枝周囲・尿管・後腹膜・心膜のいずれかに該当する所見",
         items:[
           { id:"cv_A1a", text:"a) 大動脈および主分枝の周囲に低吸収性の肥厚／軟部陰影" },
           { id:"cv_A1b", text:"b) 腎盂壁／尿管周囲の軟部陰影" },
@@ -457,17 +449,26 @@ const ORGAN_CRITERIA = {
       },
       {
         label:"A3. 病理組織所見",
-        note:"注釈 — (i) リンパ球・形質細胞浸潤と線維化　(ii) IgG4陽性形質細胞浸潤（手術標本 >30/HPF かつ IgG4/IgG比 >40%、生検標本 >10/HPF かつ IgG4/IgG比 >40%）　(iii) 花筵状線維化（SF）　(iv) 閉塞性静脈炎（OP）　(v) 好酸球浸潤 >5/HPF　(vi) リンパ濾胞形成",
+        noteItems:[
+          "(i)   リンパ球・形質細胞浸潤と線維化",
+          "(ii)  IgG4 陽性形質細胞浸潤",
+          "       手術標本：>30/HPF かつ IgG4/IgG比 >40%",
+          "       生検標本：>10/HPF かつ IgG4/IgG比 >40%",
+          "(iii) 花筵状線維化（SF）",
+          "(iv)  閉塞性静脈炎（OP）",
+          "(v)   好酸球浸潤：>5/HPF",
+          "(vi)  リンパ濾胞形成",
+        ],
         items:[
-          { id:"cv_A3a",  text:"a：(i)＋(ii)＋(iii/iv)　※花筵状線維化または閉塞性静脈炎を含む" },
-          { id:"cv_A3a2", text:"a'：(i)＋(ii)＋(v/vi)　※好酸球浸潤またはリンパ濾胞形成を含む" },
-          { id:"cv_A3b",  text:"b：(i)＋(ii)　※リンパ球・形質細胞浸潤と線維化＋IgG4陽性細胞浸潤のみ" },
+          { id:"cv_A3a",  text:"a ：(i)＋(ii)＋(iii/iv)　花筵状線維化または閉塞性静脈炎を含む" },
+          { id:"cv_A3a2", text:"a'：(i)＋(ii)＋(v/vi)　好酸球浸潤またはリンパ濾胞形成を含む" },
+          { id:"cv_A3b",  text:"b ：(i)＋(ii)　リンパ球・形質細胞浸潤と線維化＋IgG4陽性細胞浸潤のみ" },
         ]
       },
       {
         label:"A4. 他臓器病変",
         items:[
-          { id:"cv_A4", text:"眼・唾液腺・膵・胆道・腎・肺等で包括的診断基準または臓器別基準による「確診」または「準確診」" },
+          { id:"cv_A4", text:"眼・唾液腺・膵・胆道・腎・肺等で包括的/臓器別基準による「確診」または「準確診」" },
         ]
       },
     ],
@@ -1206,7 +1207,17 @@ function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckCha
                   {groups.map((group, gi) => (
                     <div key={gi} style={{ marginBottom:gi<groups.length-1?12:0 }}>
                       <div style={{ fontSize:9, fontWeight:700, color:T.navy.accent, textTransform:"uppercase", letterSpacing:".06em", marginBottom:group.note?3:6, paddingLeft:2 }}>{group.label}</div>
-                      {group.note && <div style={{ fontSize:9, color:"#64748b", background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:6, padding:"5px 8px", marginBottom:7, lineHeight:1.6, whiteSpace:"pre-line" }}>{group.note}</div>}
+                      {(group.note || group.noteItems) && (
+                        <div style={{ fontSize:9, background:"#f0f9ff", border:"1px solid #bae6fd", borderRadius:8, padding:"8px 10px", marginBottom:8 }}>
+                          <div style={{ fontWeight:700, color:"#0369a1", marginBottom:5, fontSize:9, letterSpacing:".03em" }}>【注釈】病理所見の定義</div>
+                          {group.noteItems
+                            ? group.noteItems.map((line,li)=>(
+                                <div key={li} style={{ color: line.startsWith("(") ? "#1e3a8a" : "#475569", paddingLeft: line.startsWith(" ") ? 12 : 0, lineHeight:1.75, fontWeight: line.startsWith("(") ? 600 : 400 }}>{line}</div>
+                              ))
+                            : <div style={{ color:"#475569", lineHeight:1.6, whiteSpace:"pre-line" }}>{group.note}</div>
+                          }
+                        </div>
+                      )}
                       {group.items.map(item => (
                         <CheckItem key={item.id} id={`oc-${organId}-${item.id}`} title="" description={item.text}
                           checked={!!oc[item.id]} onChange={v=>onOrganCheckChange(organId,item.id,v)} theme="navy"/>
