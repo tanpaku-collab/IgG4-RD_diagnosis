@@ -379,22 +379,73 @@ const ORGAN_CRITERIA = {
     label:"IgG4関連腎臓病診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const img  = has("kd_img")
-      const IgG4 = has("kd_IgG4")
-      const path = has("kd_path")
-      const excl = has("kd_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if ((img || IgG4) && excl) return "possible"
+      const c1  = has("kd_c1")   // 1. 尿・血液検査所見
+      const c2  = has("kd_c2")   // 2. 画像所見
+      const c3  = has("kd_c3")   // 3. 血清IgG4高値
+      const c4a = has("kd_c4a")  // 4a. 腎病理: リンパ球・形質細胞浸潤
+      const c4b = has("kd_c4b")  // 4b. 腎病理: 特徴的線維化
+      const c5  = has("kd_c5")   // 5. 腎外臓器病理
+
+      // ─── 確定診断群 ───
+      if (c1 && c3 && c4a && c4b) return "definite"
+      if (c2 && c3 && c4a && c4b) return "definite"
+      if (c2 && c3 && c5)         return "definite"
+      if (c1 && c3 && c4a && c5)  return "definite"
+
+      // ─── 準確診群 ───
+      if (c1 && c4a && c4b) return "probable"
+      if (c2 && c4a && c4b) return "probable"
+      if (c2 && c5)         return "probable"
+      if (c3 && c4a && c4b) return "probable"
+
+      // ─── 疑診群 ───
+      if (c1 && c3) return "possible"
+      if (c2 && c3) return "possible"
+      if (c1 && c4a) return "possible"
+      if (c2 && c4a) return "possible"
+
       return null
     },
     groups:[
-      { label:"診断項目", items:[
-        { id:"kd_img",  text:"腎画像所見：腎腫大・辺縁不整・多発低吸収域・腎盂壁肥厚（CT）" },
-        { id:"kd_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"kd_path", text:"病理：尿細管間質性腎炎＋IgG4陽性形質細胞浸潤 >10/HPF" },
-        { id:"kd_excl", text:"悪性腫瘍・感染症・他の自己免疫疾患（ループス腎炎等）の除外" },
-      ]},
+      {
+        label:"1. 尿・血液検査所見",
+        items:[
+          { id:"kd_c1", text:"尿・腎機能異常があり、かつ高IgG血症・低補体血症・高IgE血症のいずれかを認める" },
+        ]
+      },
+      {
+        label:"2. 画像所見",
+        items:[
+          { id:"kd_c2", text:"特徴的な画像異常（びまん性腎腫大・多発性造影不良域・単発性腎腫瘤・腎盂壁肥厚）" },
+        ]
+      },
+      {
+        label:"3. 血清学的所見",
+        items:[
+          { id:"kd_c3", text:"血清IgG4値 135 mg/dL 以上" },
+        ]
+      },
+      {
+        label:"4. 腎病理組織所見",
+        noteItems:[
+          "【4a の詳細】",
+          "　・著明なリンパ球・形質細胞浸潤を認める",
+          "　・IgG4陽性形質細胞が IgG4/IgG陽性細胞比 40%以上",
+          "　　または 10/HPF を超える",
+          "【4b の詳細】",
+          "　・浸潤細胞を取り囲む特徴的な線維化（席状線維化）を認める",
+        ],
+        items:[
+          { id:"kd_c4a", text:"4a：著明なリンパ球・形質細胞浸潤（IgG4/IgG比 ≥40% または >10/HPF）" },
+          { id:"kd_c4b", text:"4b：浸潤細胞を取り囲む特徴的な線維化" },
+        ]
+      },
+      {
+        label:"5. 腎外臓器の病理組織所見",
+        items:[
+          { id:"kd_c5", text:"腎外臓器で著明なリンパ球・形質細胞浸潤と線維化（IgG4/IgG比 ≥40% または >10/HPF）" },
+        ]
+      },
     ],
   },
 
