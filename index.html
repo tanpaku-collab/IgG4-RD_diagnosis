@@ -567,22 +567,89 @@ const ORGAN_CRITERIA = {
     label:"IgG4関連呼吸器疾患診断基準",
     verdict:(oc)=>{
       const has = id => !!oc[id]
-      const img  = has("lu_img")
+      // 1. 画像所見（いずれか）
+      const img = has("lu_i1")||has("lu_i2")||has("lu_i3")||has("lu_i4")||
+                  has("lu_i5")||has("lu_i6")||has("lu_i7")
+      // 2. 血清IgG4高値
       const IgG4 = has("lu_IgG4")
-      const path = has("lu_path")
-      const excl = has("lu_excl")
-      if (img && path) return "definite"
-      if (img && IgG4 && excl) return "probable"
-      if (img && excl) return "possible"
+      // 3. 病理（3a: 3項目以上, 3b: 2項目, 3c: 全4項目）
+      const p3a = has("lu_p3a")
+      const p3b = has("lu_p3b")
+      const p3c = has("lu_p3c")
+      // 4. 胸郭外確定診断
+      const ext = has("lu_ext")
+      // 5. 低補体血症（参考）
+      const comp = has("lu_comp")
+
+      // ─── 確定診断群 ───
+      // (1) AND (2) AND (3a)
+      if (img && IgG4 && p3a) return "definite"
+      // (1) AND (2) AND (3b) AND (4)
+      if (img && IgG4 && p3b && ext) return "definite"
+      // (1) AND (3c)
+      if (img && p3c) return "definite"
+
+      // ─── 準確診群 ───
+      // (1) AND (2) AND (4)
+      if (img && IgG4 && ext) return "probable"
+      // (1) AND (2) AND (3b) AND (5)
+      if (img && IgG4 && p3b && comp) return "probable"
+      // (1) AND (3a)
+      if (img && p3a) return "probable"
+
+      // ─── 疑診群 ───
+      // (1) AND (2) AND (3b)
+      if (img && IgG4 && p3b) return "possible"
+      // (1) AND (3b) AND (5)
+      if (img && p3b && comp) return "possible"
+
       return null
     },
     groups:[
-      { label:"診断項目", items:[
-        { id:"lu_img",  text:"肺画像所見：結節影・浸潤影・気管支肺胞壁肥厚・胸膜肥厚（CT）" },
-        { id:"lu_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
-        { id:"lu_path", text:"病理：IgG4陽性形質細胞浸潤 >10/HPF＋席状線維化（TBLB/VATS）" },
-        { id:"lu_excl", text:"感染症・悪性腫瘍・過敏性肺炎の除外" },
-      ]},
+      {
+        label:"1. 画像所見（いずれかをチェック）",
+        items:[
+          { id:"lu_i1", text:"肺門・縦隔リンパ節腫大" },
+          { id:"lu_i2", text:"気管支壁 / 気管支血管束の肥厚" },
+          { id:"lu_i3", text:"小葉間隔壁の肥厚" },
+          { id:"lu_i4", text:"結節影" },
+          { id:"lu_i5", text:"浸潤影" },
+          { id:"lu_i6", text:"胸膜病変" },
+          { id:"lu_i7", text:"傍椎体帯状軟部影" },
+        ]
+      },
+      {
+        label:"2. 血清学的所見",
+        items:[
+          { id:"lu_IgG4", text:"血清IgG4値 135 mg/dL 以上" },
+        ]
+      },
+      {
+        label:"3. 病理所見",
+        noteItems:[
+          "① 広義間質（気管支血管束周囲・小葉間隔壁・胸膜など）への著明なリンパ球・形質細胞浸潤",
+          "② IgG4/IgG陽性細胞比 >40% かつ IgG4陽性細胞 >10 cells/HPF",
+          "③ 閉塞性静脈炎、もしくは閉塞性動脈炎",
+          "④ 浸潤細胞周囲の特徴的な線維化（席状線維化に準ずる）",
+        ],
+        items:[
+          { id:"lu_p3a", text:"3a：①〜④のうち3項目以上を認める" },
+          { id:"lu_p3b", text:"3b：①〜④のうち2項目を認める" },
+          { id:"lu_p3c", text:"3c：①〜④の全4項目を認める（組織学的確定診断）" },
+        ]
+      },
+      {
+        label:"4. 胸郭外所見",
+        items:[
+          { id:"lu_ext", text:"胸郭外臓器にてIgG4関連疾患の臓器別診断基準による確定診断" },
+        ]
+      },
+      {
+        label:"5. 参考所見",
+        items:[
+          { id:"lu_comp", text:"低補体血症" },
+        ]
+      },
     ],
   },
 
