@@ -1765,9 +1765,9 @@ function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
         {/* Header */}
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
           <div style={{ minWidth:0 }}>
-            <h3 style={{ fontSize:14, fontWeight:700, color:"#1e3a8a", margin:0 }}>{r.facility||"（施設名未入力）"}</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, color:"#1e3a8a", margin:0 }}>{r.facility||"（所属名未設定）"}</h3>
             {r.dept && <p style={{ fontSize:11, color:"#64748b", margin:"2px 0 0" }}>{r.dept}</p>}
-            <p style={{ fontSize:11, color:"#64748b", margin:"2px 0 0" }}>{r.doctor||"（医師名未入力）"}</p>
+            <p style={{ fontSize:11, color:"#64748b", margin:"2px 0 0" }}>{r.doctor||"（氏名未設定）"}</p>
             <p style={{ fontSize:10, color:"#94a3b8", margin:"2px 0 0" }}>{new Date(r.date).toLocaleString("ja-JP")}</p>
           </div>
           <div style={{ display:"flex", gap:6, flexShrink:0 }}>
@@ -1937,7 +1937,7 @@ function StateD({ records, onNewSession, onDelete, onUpdate, onClearAll }) {
                 style={{ textAlign:"left", background:"white", borderRadius:12, padding:"11px 12px", border:"1px solid #e2e8f0", borderLeft:`4px solid ${LB[r.verdict.final]||"#cbd5e1"}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, boxShadow:"0 1px 3px rgba(0,0,0,.05)" }}>
                 <div style={{ minWidth:0 }}>
                   <p style={{ fontSize:13, fontWeight:700, color:"#1e3a8a", margin:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                    {r.facility||"（施設名未入力）"}{r.dept?` / ${r.dept}`:""}{r.doctor?` · ${r.doctor}`:""}
+                    {r.facility||"（所属名未設定）"}{r.dept?` / ${r.dept}`:""}{r.doctor?` · ${r.doctor}`:""}
                   </p>
                   <p style={{ fontSize:10, color:"#64748b", margin:"3px 0 0" }}>{d}{orgs&&`　${orgs.slice(0,18)}${orgs.length>18?"…":""}`}</p>
                   {r.memo && <p style={{ fontSize:10, color:"#92400e", margin:"2px 0 0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>📝 {r.memo}</p>}
