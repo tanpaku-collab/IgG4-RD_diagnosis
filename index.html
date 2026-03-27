@@ -1644,7 +1644,7 @@ function StateC({ session, verdict, onBack, onConfirm }) {
   return (
     <div style={{ padding:"14px 10px 32px", maxWidth:680, margin:"0 auto" }}>
       <h2 style={{ fontSize:15, fontWeight:700, color:"#1e3a8a", marginBottom:4 }}>診断結果の記録</h2>
-      <p style={{ fontSize:11, color:"#64748b", marginBottom:14 }}>面談情報を入力し、今回の診断内容を確認してから保存してください。</p>
+      <p style={{ fontSize:11, color:"#64748b", marginBottom:14 }}>情報を入力し、今回の診断内容を確認してから保存してください</p>
 
       {/* ── Input form ── */}
       <div style={{ background:"white", borderRadius:16, border:"1px solid #e2e8f0", overflow:"hidden", marginBottom:12, boxShadow:"0 1px 4px rgba(0,0,0,.05)" }}>
@@ -1652,28 +1652,21 @@ function StateC({ session, verdict, onBack, onConfirm }) {
           <span style={{ fontSize:11, fontWeight:700, color:"#5b21b6" }}>面談情報（任意）</span>
         </div>
         <div style={{ padding:"12px" }}>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+          <div style={{ display:"grid", marginBottom:8 }}>
             <div>
               <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-                <Building2 size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>病院名
+                <Building2 size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>所属名
               </label>
               <input type="text" value={facility} onChange={e=>setFacility(e.target.value)}
-                placeholder="○○大学病院" style={{...inp, fontSize:12}}/>
-            </div>
-            <div>
-              <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-                <ClipboardList size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>診療科
-              </label>
-              <input type="text" value={dept} onChange={e=>setDept(e.target.value)}
-                placeholder="消化器内科" style={{...inp, fontSize:12}}/>
+                placeholder="" style={{...inp, fontSize:12}}/>
             </div>
           </div>
           <div style={{ marginBottom:8 }}>
             <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
-              <UserRound size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>医師名
+              <UserRound size={10} style={{ verticalAlign:"middle", marginRight:3 }}/>氏名
             </label>
             <input type="text" value={doctor} onChange={e=>setDoctor(e.target.value)}
-              placeholder="山田 太郎 先生" style={{...inp, fontSize:12}}/>
+              placeholder="" style={{...inp, fontSize:12}}/>
           </div>
           <div>
             <label style={{ display:"block", fontSize:10, fontWeight:700, color:"#4c1d95", marginBottom:4 }}>
