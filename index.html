@@ -1446,7 +1446,7 @@ function OrganVerdictBadge({ result }) {
 // ═══════════════════════════════════════════════
 // STATE B
 // ═══════════════════════════════════════════════
-function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckChange, onBack, onProceedSave, onReset }) {
+function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckChange, onBack, onProceedSave, onReset, editingRecordId }) {
   const { checks, igg4Value, selectedOrgans, organChecks } = session
   const { c3Count, c3Match } = verdict
 
@@ -1577,8 +1577,13 @@ function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckCha
         </div>
 
         {/* ─── Action buttons ─── */}
-        <button onClick={onProceedSave} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#5b21b6,#7c3aed)", color:"white", fontWeight:700, fontSize:14, boxShadow:"0 4px 16px rgba(124,58,237,.4)", transition:"all .2s", marginBottom:8 }}>
-          <CheckCircle2 size={16}/> 診断結果を記録・保存
+        {editingRecordId && (
+          <div style={{ background:"#fef3c7", border:"1.5px solid #fcd34d", borderRadius:12, padding:"9px 14px", marginBottom:10, display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:10, color:"#92400e", fontWeight:700 }}>✏️ 保存済み記録を再編集中 — 保存すると元のデータに上書きされます</span>
+          </div>
+        )}
+        <button onClick={onProceedSave} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:editingRecordId?"linear-gradient(135deg,#7c3aed,#5b21b6)":"linear-gradient(135deg,#5b21b6,#7c3aed)", color:"white", fontWeight:700, fontSize:14, boxShadow:"0 4px 16px rgba(124,58,237,.4)", transition:"all .2s", marginBottom:8 }}>
+          <CheckCircle2 size={16}/> {editingRecordId ? "診断結果を上書き保存へ" : "診断結果を記録・保存"}
         </button>
         <button onClick={onReset} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:6, padding:"10px", borderRadius:12, border:"1.5px solid #e2e8f0", cursor:"pointer", background:"white", color:"#94a3b8", fontWeight:600, fontSize:12, transition:"all .2s", marginBottom:8 }}>
           🗑️ すべてリセット
@@ -1595,7 +1600,7 @@ function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckCha
 // ═══════════════════════════════════════════════
 // STATE C — 診断結果の記録（入力・確認）
 // ═══════════════════════════════════════════════
-function StateC({ session, verdict, onBack, onConfirm }) {
+function StateC({ session, verdict, onBack, onConfirm, editingRecordId }) {
   const [facility, setFacility] = useState("")
   const [dept,     setDept]     = useState("")
   const [doctor,   setDoctor]   = useState("")
@@ -1613,14 +1618,14 @@ function StateC({ session, verdict, onBack, onConfirm }) {
 
   const handleConfirm = () => {
     const rec = {
-      id: Date.now(),
+      id: editingRecordId || Date.now(),
       date: new Date().toISOString(),
       facility: facility.trim(), dept: dept.trim(),
       doctor: doctor.trim(), memo: memo.trim(),
       session: { ...session, organChecks: JSON.parse(JSON.stringify(session.organChecks)) },
       verdict,
     }
-    onConfirm(rec)
+    onConfirm(rec, editingRecordId || null)
     setSaved(true)
   }
 
@@ -1716,8 +1721,8 @@ function StateC({ session, verdict, onBack, onConfirm }) {
       </div>
 
       {/* ── Action buttons ── */}
-      <button onClick={handleConfirm} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:"linear-gradient(135deg,#1e40af,#1d4ed8)", color:"white", fontWeight:700, fontSize:14, boxShadow:"0 4px 16px rgba(29,78,216,.4)", marginBottom:8, transition:"all .2s" }}>
-        <CheckCircle2 size={16}/> この内容で履歴に保存
+      <button onClick={handleConfirm} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"14px", borderRadius:16, border:"none", cursor:"pointer", background:editingRecordId?"linear-gradient(135deg,#7c3aed,#5b21b6)":"linear-gradient(135deg,#1e40af,#1d4ed8)", color:"white", fontWeight:700, fontSize:14, boxShadow:editingRecordId?"0 4px 16px rgba(124,58,237,.4)":"0 4px 16px rgba(29,78,216,.4)", marginBottom:8, transition:"all .2s" }}>
+        <CheckCircle2 size={16}/> {editingRecordId ? "この内容で上書き保存" : "この内容で履歴に保存"}
       </button>
       <button onClick={onBack} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"12px", borderRadius:16, border:"1.5px solid #bfdbfe", cursor:"pointer", background:"white", color:"#1d4ed8", fontWeight:700, fontSize:13 }}>
         <ArrowLeft size={15}/> 判定画面に戻る
@@ -1730,7 +1735,7 @@ function StateC({ session, verdict, onBack, onConfirm }) {
 // ═══════════════════════════════════════════════
 // DETAIL / EDIT MODAL
 // ═══════════════════════════════════════════════
-function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
+function RecordModal({ record:r, onClose, onDelete, onUpdate, onReedit }) {
   const [editing,    setEditing]    = useState(false)
   const [facility,   setFacility]   = useState(r.facility||"")
   const [dept,       setDept]       = useState(r.dept||"")
@@ -1828,6 +1833,44 @@ function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
           </tbody>
         </table>
 
+        {/* Organ check detail accordion */}
+        {r.session.selectedOrgans && r.session.selectedOrgans.length > 0 && (() => {
+          const organs = r.session.selectedOrgans
+          return (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:"#1e40af", marginBottom:6, borderBottom:"1px solid #e2e8f0", paddingBottom:4 }}>
+                📋 臓器別チェック項目の詳細
+              </div>
+              {organs.map(organId => {
+                const crit = ORGAN_CRITERIA[organId]
+                if (!crit) return null
+                const oc = (r.session.organChecks||{})[organId] || {}
+                const orgName = ORGANS.find(o=>o.id===organId)?.name || organId
+                const groups = crit.groups || (crit.items ? [{label:"診断項目", items:crit.items}] : [])
+                const checkedItems = groups.flatMap(g=>g.items||[]).filter(item=>oc[item.id])
+                if (checkedItems.length === 0) return null
+                return (
+                  <div key={organId} style={{ marginBottom:8, background:"#f8fafc", border:"1px solid #e2e8f0", borderRadius:10, padding:"8px 10px" }}>
+                    <div style={{ fontSize:10, fontWeight:700, color:"#1e3a8a", marginBottom:4 }}>{orgName}</div>
+                    {checkedItems.map(item => (
+                      <div key={item.id} style={{ fontSize:10, color:"#334155", display:"flex", alignItems:"flex-start", gap:5, lineHeight:1.5, marginBottom:2 }}>
+                        <span style={{ color:"#16a34a", fontWeight:700, flexShrink:0 }}>✓</span>
+                        <span>{item.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
+
+        {/* Re-edit diagnosis button */}
+        <button onClick={()=>{ onReedit(r); onClose() }}
+          style={{ width:"100%", padding:"11px", borderRadius:12, border:"1.5px solid #7c3aed", background:"white", color:"#7c3aed", fontWeight:700, fontSize:12, cursor:"pointer", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+          🔄 診断内容を再編集する
+        </button>
+
         {/* Delete */}
         {!confirmDel ? (
           <button onClick={()=>setConfirmDel(true)} style={{ width:"100%", padding:"10px", borderRadius:12, border:"1.5px solid #fecaca", background:"white", color:"#ef4444", fontWeight:600, fontSize:12, cursor:"pointer", marginBottom:8 }}>
@@ -1854,7 +1897,7 @@ function RecordModal({ record:r, onClose, onDelete, onUpdate }) {
 // ═══════════════════════════════════════════════
 const LB={ definite:"#1e3a8a", probable:"#1d4ed8", possible:"#0891b2", negative:"#94a3b8" }
 
-function StateD({ records, onNewSession, onDelete, onUpdate, onClearAll }) {
+function StateD({ records, onNewSession, onDelete, onUpdate, onClearAll, onReedit }) {
   const [confirmClearAll, setConfirmClearAll] = useState(false)
   const [search, setSearch] = useState("")
   const [sort,   setSort]   = useState("date_desc")
@@ -1962,6 +2005,7 @@ function StateD({ records, onNewSession, onDelete, onUpdate, onClearAll }) {
           onClose={()=>setSel(null)}
           onDelete={id=>{ onDelete(id); setSel(null) }}
           onUpdate={updated=>{ onUpdate(updated); setSel({ ...sel, ...updated }) }}
+          onReedit={rec=>{ onReedit(rec); setSel(null) }}
         />
       )}
     </div>
@@ -2010,11 +2054,20 @@ function App() {
   const onOrganCheckChange = useCallback((oid,iid,v)=>setSession(p=>({ ...p, organChecks:{ ...p.organChecks,[oid]:{ ...(p.organChecks[oid]??{}),[iid]:v } } })), [])
   const onReset       = useCallback(()=>{ clearDraft(); setSession(INIT) }, [])
 
-  const onConfirm = useCallback(rec=>{
-    const next = [...records, rec]
+  const onConfirm = useCallback((rec, overwriteId)=>{
+    let next
+    if (overwriteId) {
+      // Overwrite existing record (keep original ID and date)
+      const original = records.find(r=>r.id===overwriteId)
+      const updated  = { ...(original||{}), ...rec, id:overwriteId, date:(original?.date||rec.date) }
+      next = records.map(r=>r.id===overwriteId ? updated : r)
+    } else {
+      next = [...records, rec]
+    }
     setRecords(next); saveRecords(next)
-    clearDraft()          // clear draft after confirmed save
-    setSession(INIT)      // reset session
+    clearDraft()
+    setSession(INIT)
+    setEditingRecordId(null)
     goTo("D")
   }, [records, goTo])
 
@@ -2028,12 +2081,26 @@ function App() {
     setRecords(next); saveRecords(next)
   }, [records])
 
+  const [editingRecordId, setEditingRecordId] = useState(null)
+
   const onClearAll = useCallback(()=>{
     clearAllRecords(); clearDraft()
-    setRecords([]); setSession(INIT)
+    setRecords([]); setSession(INIT); setEditingRecordId(null)
   }, [])
 
-  const onNewSession = useCallback(()=>{ clearDraft(); setSession(INIT); goTo("A") }, [goTo])
+  const onNewSession = useCallback(()=>{ clearDraft(); setSession(INIT); setEditingRecordId(null); goTo("A") }, [goTo])
+
+  // Re-edit: restore saved session into active session and go to B
+  const onReedit = useCallback(rec=>{
+    setEditingRecordId(rec.id)
+    setSession({
+      selectedOrgans: rec.session.selectedOrgans || [],
+      igg4Value:      rec.session.igg4Value || "",
+      checks:         rec.session.checks    || INIT.checks,
+      organChecks:    rec.session.organChecks ? JSON.parse(JSON.stringify(rec.session.organChecks)) : {},
+    })
+    goTo("B")
+  }, [goTo])
 
   return (
     <div style={{ minHeight:"100vh", background:"#f8faff", fontFamily:"'Noto Sans JP','Hiragino Sans','Yu Gothic UI',sans-serif" }}>
@@ -2044,13 +2111,17 @@ function App() {
       {appState==="B" && (
         <StateB session={session} verdict={verdict}
           onCheckChange={onCheckChange} onIgg4Change={onIgg4Change} onOrganCheckChange={onOrganCheckChange}
-          onBack={()=>goTo("A")} onProceedSave={()=>goTo("C")} onReset={onReset}/>
+          onBack={()=>{ if(editingRecordId){ setEditingRecordId(null); goTo("D") } else goTo("A") }}
+          onProceedSave={()=>goTo("C")} onReset={()=>{ onReset(); setEditingRecordId(null) }}
+          editingRecordId={editingRecordId}/>
       )}
       {appState==="C" && (
-        <StateC session={session} verdict={verdict} onBack={()=>goTo("B")} onConfirm={onConfirm}/>
+        <StateC session={session} verdict={verdict} onBack={()=>goTo("B")}
+          onConfirm={onConfirm} editingRecordId={editingRecordId}/>
       )}
       {appState==="D" && (
-        <StateD records={records} onNewSession={onNewSession} onDelete={onDelete} onUpdate={onUpdate} onClearAll={onClearAll}/>
+        <StateD records={records} onNewSession={onNewSession} onDelete={onDelete}
+          onUpdate={onUpdate} onClearAll={onClearAll} onReedit={onReedit}/>
       )}
     </div>
   )
