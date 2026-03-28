@@ -1600,11 +1600,12 @@ function StateB({ session, verdict, onCheckChange, onIgg4Change, onOrganCheckCha
 // ═══════════════════════════════════════════════
 // STATE C — 診断結果の記録（入力・確認）
 // ═══════════════════════════════════════════════
-function StateC({ session, verdict, onBack, onConfirm, editingRecordId }) {
-  const [facility, setFacility] = useState("")
-  const [dept,     setDept]     = useState("")
-  const [doctor,   setDoctor]   = useState("")
-  const [memo,     setMemo]     = useState("")
+function StateC({ session, verdict, onBack, onConfirm, editingRecordId, editingRecord }) {
+  // Pre-populate from existing record when re-editing
+  const [facility, setFacility] = useState(editingRecord?.facility || "")
+  const [dept,     setDept]     = useState(editingRecord?.dept     || "")
+  const [doctor,   setDoctor]   = useState(editingRecord?.doctor   || "")
+  const [memo,     setMemo]     = useState(editingRecord?.memo     || "")
   const [saved,    setSaved]    = useState(false)
 
   const organNames = session.selectedOrgans.map(id=>ORGANS.find(o=>o.id===id)?.name).filter(Boolean).join("、")
@@ -1618,11 +1619,14 @@ function StateC({ session, verdict, onBack, onConfirm, editingRecordId }) {
 
   const handleConfirm = () => {
     const rec = {
-      id: editingRecordId || Date.now(),
-      date: new Date().toISOString(),
-      facility: facility.trim(), dept: dept.trim(),
-      doctor: doctor.trim(), memo: memo.trim(),
-      session: { ...session, organChecks: JSON.parse(JSON.stringify(session.organChecks)) },
+      id:       editingRecordId || Date.now(),
+      date:     new Date().toISOString(),
+      // On overwrite: keep existing values if user left fields blank
+      facility: facility.trim() || (editingRecord?.facility || ""),
+      dept:     dept.trim()     || (editingRecord?.dept     || ""),
+      doctor:   doctor.trim()   || (editingRecord?.doctor   || ""),
+      memo:     memo.trim()     || (editingRecord?.memo     || ""),
+      session:  { ...session, organChecks: JSON.parse(JSON.stringify(session.organChecks)) },
       verdict,
     }
     onConfirm(rec, editingRecordId || null)
@@ -2082,17 +2086,19 @@ function App() {
   }, [records])
 
   const [editingRecordId, setEditingRecordId] = useState(null)
+  const [editingRecord,   setEditingRecord]   = useState(null)   // stores full record for metadata
 
   const onClearAll = useCallback(()=>{
     clearAllRecords(); clearDraft()
-    setRecords([]); setSession(INIT); setEditingRecordId(null)
+    setRecords([]); setSession(INIT); setEditingRecordId(null); setEditingRecord(null)
   }, [])
 
-  const onNewSession = useCallback(()=>{ clearDraft(); setSession(INIT); setEditingRecordId(null); goTo("A") }, [goTo])
+  const onNewSession = useCallback(()=>{ clearDraft(); setSession(INIT); setEditingRecordId(null); setEditingRecord(null); goTo("A") }, [goTo])
 
   // Re-edit: restore saved session into active session and go to B
   const onReedit = useCallback(rec=>{
     setEditingRecordId(rec.id)
+    setEditingRecord(rec)           // preserve full record (facility/doctor/memo)
     setSession({
       selectedOrgans: rec.session.selectedOrgans || [],
       igg4Value:      rec.session.igg4Value || "",
@@ -2117,7 +2123,7 @@ function App() {
       )}
       {appState==="C" && (
         <StateC session={session} verdict={verdict} onBack={()=>goTo("B")}
-          onConfirm={onConfirm} editingRecordId={editingRecordId}/>
+          onConfirm={onConfirm} editingRecordId={editingRecordId} editingRecord={editingRecord}/>
       )}
       {appState==="D" && (
         <StateD records={records} onNewSession={onNewSession} onDelete={onDelete}
